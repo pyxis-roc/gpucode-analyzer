@@ -15,6 +15,13 @@ class Instruction:
     def is_control(self):
         return isinstance(self, ControlInsn)
 
+    def reads(self):
+        raise NotImplementedError
+
+    def writes(self):
+        raise NotImplementedError
+
+
 class ControlInsn(Instruction):
     def target(self):
         """Returns pc of target"""
@@ -37,6 +44,7 @@ class Memory:
     pass
 
 class SASSInstruction(Instruction):
+    WRITE_COUNT = {}
     def __init__(self, pc, pred, opcode, args, insn):
         self.label = pc
         self.predicate = pred
@@ -48,6 +56,10 @@ class SASSInstruction(Instruction):
         for a in self.args:
             m = SASS_REG_RE.match(a)
             if m is not None:
+                if a[0] == "!":
+                    a = a[1:]
+                if a.endswith(".reuse"):
+                    a = a[:-len(".reuse")]
                 out.append(Register(a))
             else:
                 out.append(a)
@@ -55,14 +67,23 @@ class SASSInstruction(Instruction):
         self.args = out
 
     def __str__(self):
-        return f"{self.label}: {self.predicate if self.predicate else ''} {self.opcode} {self.args}"
+        return f"{self.label}: {self.predicate if self.predicate else ''} {self.opcode} {self.args} {self.reads()} {self.writes()}"
 
     __repr__ = __str__
+
+    def reads(self):
+        write_args = SASSInstruction.WRITE_COUNT.get(self.opcode, 1)
+        return list(x for x in self.args[write_args:] if isinstance(x, Register))
+
+    def writes(self):
+        write_args = SASSInstruction.WRITE_COUNT.get(self.opcode, 1)
+        return list(x for x in self.args[:write_args] if isinstance(x, Register))
 
     @staticmethod
     def parse(insn):
         if insn[0] == "@":
             predicate, insn = insn.split(" ", 1)
+            predicate = predicate[1:]
         else:
             predicate = None
 
@@ -140,7 +161,6 @@ class BasicBlock:
     def __repr__(self):
         return f"BasicBlock({self.name}, ...)"
 
-
 class CFG:
     def __init__(self, codefile):
         self.codefile = codefile
@@ -196,7 +216,7 @@ class CFG:
 
         # fix up branch targets to bb; could be avoided
         for bb in self.blocks:
-            print(bb)
+            #print(bb)
             last_insn = bb.code[-1]
             if last_insn.is_control():
                 target = last_insn.target()
@@ -216,6 +236,35 @@ class CFG:
             print(b.name + ";")
             print("\n".join(f"{b.name} -> {succ.name} [label='{lbl if lbl != 'next' else ''}'];" for lbl, succ in b.successors.items()))
 
+
+class Skeletonizer:
+    def __init__(self, cfg):
+        self.cfg = cfg
+
+    def build_skeleton(self):
+        important = set()
+        to_process = []
+
+        for b in self.cfg.blocks:
+            last_insn = b.code[-1]
+            if last_insn.is_control():
+                if last_insn.label not in important:
+                    important.add(last_insn.label)
+                    to_process.append(last_insn)
+
+
+        for i in to_process:
+            reads = set(i.reads())
+            if i.predicate:
+                reads.add(i.predicate[1:] if i.predicate[0] == "!" else i.predicate)
+            print(reads)
+
+        for b in self.cfg.blocks:
+            for i in b.code:
+                if i.label in important:
+                    print(i)
+
+
 EXT= {'.sass': SASSFile}
 if __name__ == "__main__":
     import argparse
@@ -230,8 +279,10 @@ if __name__ == "__main__":
     else:
         print("Unrecognized extension")
 
-    code.dump()
+    #code.dump()
     cfg = CFG(code)
     cfg.build()
-    cfg.dump()
-    cfg.dump_dot()
+    #cfg.dump()
+    sk = Skeletonizer(cfg)
+    sk.build_skeleton()
+    #cfg.dump_dot()
