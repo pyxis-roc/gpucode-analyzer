@@ -85,6 +85,12 @@ class cudaOccResult(Structure):
 
 _cudaocc.myOccMaxActiveBlocksPerMultiprocessor.argtypes = [POINTER(cudaOccResult), POINTER(cudaOccDeviceProp), POINTER(cudaOccFuncAttributes), POINTER(cudaOccDeviceState), c_int, c_size_t]
 
+_cudaocc.myOccAvailableDynamicSMemPerBlock.argtypes = [POINTER(c_size_t), POINTER(cudaOccDeviceProp), POINTER(cudaOccFuncAttributes), POINTER(cudaOccDeviceState), c_int, c_int]
+
+blockSizeToDynamicSMemSizeFnTy = CFUNCTYPE(c_size_t, c_int)
+
+_cudaocc.myOccMaxPotentialOccupancyBlockSize.argtypes = [POINTER(c_int), POINTER(c_int), POINTER(cudaOccDeviceProp), POINTER(cudaOccFuncAttributes), POINTER(cudaOccDeviceState), POINTER(blockSizeToDynamicSMemSizeFnTy), c_size_t]
+
 # NVIDIA RTX A2000 12GB
 SM_86 = cudaOccDeviceProp(computeMajor=8, computeMinor=6, maxThreadsPerBlock=1024, maxThreadsPerMultiprocessor=1536, regsPerBlock=65536, regsPerMultiprocessor=65536, warpSize=32, sharedMemPerBlock=49152, sharedMemPerMultiprocessor=102400, numSms=26, sharedMemPerBlockOptin=101376, reservedSharedMemPerBlock=1024)
 
@@ -127,12 +133,79 @@ class CUDAOccupancy:
         else:
             raise NotImplementedError
 
+    def _MaxPotentialOccupancyBlockSize(self, dynamicSMemSize,
+                                        funcattr: cudaOccFuncAttributes,
+                                        state: cudaOccDeviceState = None,
+                                        blockSizeToDynamicSMemSize = None):
+        state = state or self.state
+        minGridSize = c_int(0)
+        blockSize = c_int(0)
+
+        fn = blockSizeToDynamicSMemSizeFnTy(blockSizeToDynamicSMemSize) if blockSizeToDynamicSMemSize else None
+
+        ret = _cudaocc.myOccMaxPotentialOccupancyBlockSize(
+            byref(minGridSize), byref(blockSize),
+            byref(self.props), byref(funcattr), byref(state),
+            fn,
+            c_size_t(dynamicSMemSize))
+
+        if ret == CUDA_OCC_SUCCESS:
+            return (minGridSize, blockSize)
+        elif ret == CUDA_OCC_ERROR_INVALID_INPUT:
+            raise ValueError(f"Invalid input")
+        elif ret == CUDA_OCC_ERROR_UNKNOWN_DEVICE:
+            raise ValueError(f"Unsupported device")
+        else:
+            raise NotImplementedError
+
+    def MaxPotentialOccupancyBlockSize(self,
+                                       funcattr: cudaOccFuncAttributes,
+                                       dynamicSMemSize = 0,
+                                       state: cudaOccDeviceState = None):
+
+        return self._MaxPotentialOccupancyBlockSize(dynamicSMemSize,
+                                                    funcattr,
+                                                    state,
+                                                    None)
+
+    def MaxPotentialOccupancyBlockSizeVariableSMem(self,
+                                                   funcattr: cudaOccFuncAttributes,
+                                                   blockSizeToDynamicSMemSize,
+                                                   state: cudaOccDeviceState = None):
+        return self._MaxPotentialOccupancyBlockSize(0,
+                                                    funcattr,
+                                                    state = state,
+                                                    blockSizeToDynamicSMemSize = blockSizeToDynamicSMemSize)
+
+    def AvailableDynamicSMemPerBlock(self,
+                                     numBlocks, blockSize,
+                                     funcattr: cudaOccFuncAttributes,
+                                     state: cudaOccDeviceState = None):
+        res = c_size_t(0)
+        state = state or self.state
+
+        ret = _cudaocc.myOccAvailableDynamicSMemPerBlock(byref(res),
+                                                         byref(self.props),
+                                                         byref(funcattr),
+                                                         byref(state),
+                                                         numBlocks, blockSize)
+        if ret == CUDA_OCC_SUCCESS:
+            return res.value
+        elif ret == CUDA_OCC_ERROR_INVALID_INPUT:
+            raise ValueError(f"Invalid input")
+        elif ret == CUDA_OCC_ERROR_UNKNOWN_DEVICE:
+            raise ValueError(f"Unsupported device")
+        else:
+            raise NotImplementedError
+
+
+
 if __name__ == "__main__":
     print("Max compute major supported is", getMaxComputeMajor())
     d = CUDAOccupancy(SM_86, DEFAULT_DEVICE_STATE)
 
     fn = cudaOccFuncAttributes(MAX_THREADS_PER_BLOCK_UNLIMITED,
-                               77,
+                               59,
                                0,
                                PARTITIONED_GC_OFF,
                                FUNC_SHMEM_LIMIT_DEFAULT,
@@ -144,4 +217,15 @@ if __name__ == "__main__":
           res.limitingFactors)
     print(res.activeBlocksPerMultiprocessor*256/d.props.maxThreadsPerMultiprocessor)
 
+    r2 = d.MaxPotentialOccupancyBlockSize(fn)
+    print(r2)
 
+    #def y(x):
+    #    return x * 4
+
+    # segfaults
+    #r3 = d.MaxPotentialOccupancyBlockSizeVariableSMem(fn, y)
+    #print(r3)
+
+    r4 = d.AvailableDynamicSMemPerBlock(1, 256, fn)
+    print(r4)
