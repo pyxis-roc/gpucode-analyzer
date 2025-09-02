@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name="gpucode-analyzer"
+version="0.1"
+requires-python=">= 3.9"
+authors = [
+        {name="Sreepathi Pai", email="sree@cs.rochester.edu"},
+]
+description="A generic framework for analyzing GPU code"
+license="MIT"
+
+[project.scripts]
+buildcfg="gpucodeanalyzer.buildcfg:main"
