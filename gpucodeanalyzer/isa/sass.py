@@ -5,7 +5,7 @@ SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;$")
 SASS_REG_RE = re.compile(r"(((UR|R|!?P|B)\d+)(.reuse)?)|(PT|RZ|SRZ|SR_CTAID\.?)")
 
 class SASSInstruction(Instruction):
-    WRITE_COUNT = {}
+    WRITE_COUNT = {'BSYNC': 0}
     def __init__(self, pc, pred, opcode, args, insn):
         self.label = pc
         self.predicate = pred
