@@ -17,7 +17,25 @@ class DefUseAnalysis:
                         defs[r.n].add(i.label)
 
         self.defns = defs
-        
+
+    def reaching_defns(self):
+        kills = {}
+
+        for b in self.cfg.blocks:
+            for i in b.code:
+                k = set()
+                for r in i.writes():
+                    if isinstance(r, Register):
+                        all_defs = self.defns[r.n]
+                        k = k.union(all_defs)
+
+                k = k - set([i.label])
+                kills[i.label] = k
+
+                print(b.code)
+                exit
+
+        print(kills)
 
 
 def test():
@@ -34,6 +52,7 @@ def test():
     cfg.build()
     da = DefUseAnalysis(cfg)
     da.build_definitions()
+    da.reaching_defns()
 
 if __name__=="__main__":
     test()
