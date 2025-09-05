@@ -44,11 +44,21 @@ class BasicBlock:
         self.name = name
         self.code = code
         self.successors = {}
+        self.predecessors = {}
 
     def add_successor(self, label, bb):
         # TODO: prevent duplicate adding?
         assert label not in self.successors, f"Duplicate successor label {label}"
         self.successors[label] = bb
+
+    def add_predecessor(self, bb):
+        self.predecessors[bb.name] = bb
+
+    def _mark_as_predecessor(self):
+        # must be called once all successors have been added
+
+        for s in self.successors:
+            self.successors[s].add_predecessor(self)
 
     def __str__(self):
         return f"{self.name}: {self.successors}\n" + "\n".join([f"  {c}" for c in self.code])
@@ -121,6 +131,10 @@ class CFG:
                 else:
                     bb.add_successor('next',
                                      self.labels_to_blocks[target])
+
+        # populate predecessors
+        for bb in self.blocks:
+            bb._mark_as_predecessor()
 
     def dump(self):
         for b in self.blocks:
