@@ -20,22 +20,25 @@ class DefUseAnalysis:
 
     def reaching_defns(self):
         kills = {}
+        gens = {}
 
         for b in self.cfg.blocks:
             for i in b.code:
-                k = set()
+                k = {}
+                g = set()
                 for r in i.writes():
                     if isinstance(r, Register):
                         all_defs = self.defns[r.n]
-                        k = k.union(all_defs)
+                        k[r.n] = k.get(r.n, set()).union(all_defs)
+                        k[r.n] = k[r.n] - set([i.label])
 
-                k = k - set([i.label])
+                        g.add(r.n)
+
                 kills[i.label] = k
-
-                print(b.code)
-                exit
+                gens[i.label] = g
 
         print(kills)
+        print(gens)
 
 
 def test():
