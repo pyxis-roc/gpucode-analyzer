@@ -33,6 +33,9 @@ class Register:
     def __str__(self):
         return f"Register({self.n})"
 
+    def is_constant(self):
+        return False
+
     __repr__ = __str__
 
 class Memory:

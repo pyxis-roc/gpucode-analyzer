@@ -4,6 +4,16 @@ from ..generic_cfg import Instruction, ControlInsn, Register, Memory
 SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;$")
 SASS_REG_RE = re.compile(r"(((UR|R|!?P|B)\d+)(.reuse)?)|(PT|RZ|SRZ|SR_CTAID\.?)")
 
+class SASSRegister(Register):
+    def __init__(self, n, is_inverted = False):
+        super().__init__(n)
+
+        # todo: reuse, !, .cc
+        self.is_inverted = is_inverted
+
+    def is_constant(self):
+        return self.n == "RZ" or self.n == "PT"
+
 class SASSInstruction(Instruction):
     WRITE_COUNT = {'BSYNC': 0}
     def __init__(self, pc, pred, opcode, args, insn):
@@ -17,11 +27,19 @@ class SASSInstruction(Instruction):
         for a in self.args:
             m = SASS_REG_RE.match(a)
             if m is not None:
+                r = None
                 if a[0] == "!":
                     a = a[1:]
+                    r = SASSRegister(a, is_inverted = True)
+
                 if a.endswith(".reuse"):
+                    assert r is None
                     a = a[:-len(".reuse")]
-                out.append(Register(a))
+                    r = SASSRegister(a) #TODO: is_reuse
+                else:
+                    r = SASSRegister(a)
+
+                out.append(r)
             else:
                 out.append(a)
 
@@ -38,7 +56,7 @@ class SASSInstruction(Instruction):
 
     def writes(self):
         write_args = SASSInstruction.WRITE_COUNT.get(self.opcode, 1)
-        return list(x for x in self.args[:write_args] if isinstance(x, Register))
+        return list(x for x in self.args[:write_args] if isinstance(x, Register) and not x.is_constant())
 
     @staticmethod
     def parse(insn):
