@@ -1,8 +1,12 @@
 from .generic_cfg import Register
+from .def_use import DefUseAnalysis
 
 class Skeletonizer:
     def __init__(self, cfg):
         self.cfg = cfg
+        self.da = DefUseAnalysis(self.cfg)
+        self.da.build_definitions()
+        self.da.reaching_defns()
 
     def build_skeleton(self):
         important = set()
@@ -13,32 +17,19 @@ class Skeletonizer:
             if last_insn.is_control():
                 if last_insn.label not in important:
                     important.add(last_insn.label)
-                    to_process.append(last_insn)
+                    to_process.append(last_insn.label)
 
         while len(to_process):
-            writers_of = set()
-            for i in to_process:
-                reads = set([r.n for r in i.reads() if isinstance(r, Register)])
-                if i.predicate:
-                    reads.add(i.predicate[1:] if i.predicate[0] == "!" else i.predicate)
+            new_to_process = []
+            for il in to_process:
+                rdefs = self.da.rdefs[il]
+                for _, rdil in rdefs:
+                    if rdil not in important:
+                        new_to_process.append(rdil)
+                        important.add(rdil)
 
-                writers_of = writers_of.union(reads)
+            to_process = new_to_process
 
-            to_process = []
-            for b in self.cfg.blocks:
-                for i in b.code:
-                    for o in i.writes():
-                        if isinstance(o, Register):
-                            if o.n in writers_of and i.label not in important:
-                                important.add(i.label)
-                                to_process.append(i)
-                                break
-
-        #for b in self.cfg.blocks:
-        #    for i in b.code:
-        #        if i.label in important:
-        #            print(i)
-        #            pass
         self.important = important
 
 def test():

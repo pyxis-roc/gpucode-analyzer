@@ -52,7 +52,14 @@ class SASSInstruction(Instruction):
 
     def reads(self):
         write_args = SASSInstruction.WRITE_COUNT.get(self.opcode, 1)
-        return list(x for x in self.args[write_args:] if isinstance(x, Register))
+        rds = list(x for x in self.args[write_args:] if isinstance(x, Register))
+        if self.predicate:
+            n = self.predicate
+            if n[0] == "!": n = n[1:]
+            rds.append(SASSRegister(n,
+                                    is_inverted = self.predicate[0] == "!"))
+
+        return rds
 
     def writes(self):
         write_args = SASSInstruction.WRITE_COUNT.get(self.opcode, 1)
