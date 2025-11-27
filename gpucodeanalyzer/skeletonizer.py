@@ -32,6 +32,15 @@ class Skeletonizer:
 
         self.important = important
 
+    def get_skeleton_cfg(self):
+        ocfg = self.cfg.copy()
+        for b in ocfg.blocks:
+            b._target = b.target()
+            b.code = [i for i in b.code if i.label in self.important]
+
+        return ocfg
+
+
 def test():
     from gpucodeanalyzer.isa.sass import SASSFile
     from gpucodeanalyzer.generic_cfg import CFG
@@ -48,8 +57,11 @@ def test():
     sk = Skeletonizer(cfg)
     sk.build_skeleton()
 
+    sk_cfg = sk.get_skeleton_cfg()
+
     with open("skel.dot", "w") as f:
-        cfg.dump_dot(f, xinsn = lambda i: i.insn if i.label in sk.important else '')
+        sk_cfg.dump_dot(f)
+        #cfg.dump_dot(f, xinsn = lambda i: i.insn if i.label in sk.important else '')
 
 if __name__ == "__main__":
     test()

@@ -69,6 +69,21 @@ class BasicBlock:
     def __repr__(self):
         return f"BasicBlock({self.name}, ...)"
 
+    def copy(self):
+        o = BasicBlock(self.name, self.code)
+        o.successors = dict(self.successors.items())
+        o.predecessors = dict(self.predecessors.items())
+
+        return o
+
+    def target(self):
+        if hasattr(self, '_target'):
+            return self._target
+        elif len(self.code) > 0:
+            return self.code[0].label
+        else:
+            raise ValueError
+
 class CFG:
     def __init__(self, codefile):
         self.codefile = codefile
@@ -146,7 +161,22 @@ class CFG:
     def dump_dot(self, output, code=True, xinsn=lambda i: i.insn):
         print("digraph {", file=output)
         for b in self.blocks:
-            bbcode = '"' + b.code[0].label + "\\n" + "\\n".join([str(xinsn(s)) for s in b.code]) + '"'
+            bbcode = '"' + b.target() + "\\n" + "\\n".join([str(xinsn(s)) for s in b.code]) + '"'
             print(b.name + f" [label={bbcode},shape=rect];", file=output)
             print("\n".join(f"{b.name} -> {succ.name} [label=\"{lbl if lbl != 'next' else ''}\"];" for lbl, succ in b.successors.items()), file=output)
         print("}", file=output)
+
+    def copy(self):
+        x = CFG(self.codefile)
+        x.blocks = list([b.copy() for b in self.blocks])
+
+        l2b = {}
+        l2b['_start'] = self.labels_to_blocks['_start'].copy()
+        l2b['_exit'] = self.labels_to_blocks['_exit'].copy()
+        l2b.update(dict((b.code[0].label, b) for b in x.blocks))
+
+        # note, doesn't deep copy instructions
+        for l in self.labels_to_blocks:
+            x.labels_to_blocks[l] = l2b[l]
+
+        return x
