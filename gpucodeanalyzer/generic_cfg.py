@@ -180,3 +180,12 @@ class CFG:
             x.labels_to_blocks[l] = l2b[l]
 
         return x
+
+    def convert(self, converter):
+        converter.init_cfg(self)
+        block_order = converter.output_block_order()
+
+        for b in block_order:
+            converter.convert_block(self.labels_to_blocks[b])
+
+        converter.finish_cfg()

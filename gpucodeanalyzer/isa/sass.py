@@ -1,5 +1,6 @@
 import re
 from ..generic_cfg import Instruction, ControlInsn, Register, Memory
+from .sass2c import SASS2C
 
 SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;$")
 SASS_REG_RE = re.compile(r"(((UR|R|!?P|B)\d+)(.reuse)?)|(PT|RZ|SRZ|SR_CTAID\.?)")
