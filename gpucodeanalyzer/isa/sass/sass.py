@@ -1,9 +1,8 @@
 import re
-from ..generic_cfg import Instruction, ControlInsn, Register, Memory
-from .sass2c import SASS2C
+from ...generic_cfg import Instruction, ControlInsn, Register, Memory
 
 SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;$")
-SASS_REG_RE = re.compile(r"(((UR|R|!?P|B)\d+)(.reuse)?)|(PT|RZ|SRZ|SR_CTAID\.?)")
+SASS_REG_RE = re.compile(r"(((UR|R|!?P|B)\d+)(.reuse)?)|(PT|RZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
 
 class SASSRegister(Register):
     def __init__(self, n, is_inverted = False):

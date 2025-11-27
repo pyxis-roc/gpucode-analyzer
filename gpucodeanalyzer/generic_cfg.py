@@ -189,3 +189,8 @@ class CFG:
             converter.convert_block(self.labels_to_blocks[b])
 
         converter.finish_cfg()
+
+    def all_instructions(self):
+        for b in self.blocks:
+            for i in b.code:
+                yield i
