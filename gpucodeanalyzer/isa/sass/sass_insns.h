@@ -6,6 +6,10 @@
 #define IMAD_U32(dst, src1, src2, src3) dst = src1 * src2 + src3
 #define IMAD(dst, src1, src2, src3) dst = src1 * src2 + src3
 
+#define IMAD_MOV_U32(dst, src1, src2, src3) IMAD(dst, src1, src2, src3)
+#define IMAD_IADD_U32(dst, src1, src2, src3) IMAD(dst, src1, src2, src3)
+#define IMAD_SHL_U32(dst, src1, src2, src3) IMAD(dst, src1, src2, src3)
+
 #define IADD3(dst, src1, src2, src3) dst = src1 + src2 + src3
 
 #define EXIT() return

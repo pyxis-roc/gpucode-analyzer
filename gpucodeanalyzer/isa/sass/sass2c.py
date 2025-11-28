@@ -3,7 +3,7 @@ from .sass import SASSRegister
 class SASS2C:
     def __init__(self, output):
         self.output = output
-
+        self.causes = {}
 
     def declare_registers(self):
         self.output.write("    const sass_reg RZ = 0;\n")
@@ -61,6 +61,8 @@ class SASS2C:
 
         return order
 
+    def _xlat_failure(self, cause):
+        self.causes[cause] = self.causes.get(cause, 0) + 1
 
     def xlat_insn(self, i):
         def process_c_lookup(cl):
@@ -78,9 +80,11 @@ class SASS2C:
                     if a.startswith('-') or a.startswith('0x'):
                         o.append(f"(sass_reg) {a}")
                     elif a.startswith('c['):
+                        self._xlat_failure('constant')
                         return None
                         o.append(process_c_lookup(a))
                     elif a.startswith('cx['):
+                        self._xlat_failure('cx')
                         return None
                         o.append(process_cx_lookup(a))
 
@@ -90,8 +94,8 @@ class SASS2C:
         opcode = None
         if i.opcode == "S2R":
             opcode = "S2R"
-        elif i.opcode == "IMAD.U32":
-            opcode = "IMAD_U32"
+        elif i.opcode.startswith("IMAD"):
+            opcode = i.opcode.replace(".", "_")
         elif i.opcode == "IMAD":
             opcode = "IMAD"
         elif i.opcode == "IADD3":
@@ -115,6 +119,8 @@ class SASS2C:
             assert len(label) == 4, label
 
             args = f'label_{label}'
+        else:
+            self._xlat_failure(f'opcode {i.opcode}')
 
         if opcode:
             if args is None:
@@ -129,6 +135,9 @@ class SASS2C:
                 elif isinstance(opcode, list):
                     for op in opcode:
                         self.output.write(f"    {op}({args});\n")
+                else:
+                    raise NotImplementedError
+
                 return True
 
         return False
@@ -147,4 +156,4 @@ class SASS2C:
         self.output.write("}\n")
 
     def finish(self):
-        pass
+        print(self.causes)
