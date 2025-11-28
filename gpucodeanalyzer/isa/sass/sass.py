@@ -4,6 +4,8 @@ from ...generic_cfg import Instruction, ControlInsn, Register, Memory
 SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;$")
 SASS_REG_RE = re.compile(r"(((UR|R|!?P|B)\d+)(.reuse)?)|(PT|RZ|URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
 
+CX_RE = re.compile(r"cx\[(?P<regbase>.+)\]\[(?P<offset>.+)\]")
+
 class SASSRegister(Register):
     def __init__(self, n, is_inverted = False):
         super().__init__(n)
@@ -58,6 +60,13 @@ class SASSInstruction(Instruction):
             if n[0] == "!": n = n[1:]
             rds.append(SASSRegister(n,
                                     is_inverted = self.predicate[0] == "!"))
+
+        # hack, need to fix this.
+        for x in self.args[write_args:]:
+            if isinstance(x, str):
+                cxm = CX_RE.match(x)
+                if cxm:
+                    rds.append(SASSRegister(cxm.group('regbase')))
 
         return rds
 
