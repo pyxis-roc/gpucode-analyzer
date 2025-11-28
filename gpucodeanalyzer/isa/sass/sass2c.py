@@ -4,6 +4,7 @@ class SASS2C:
     def __init__(self, output):
         self.output = output
         self.causes = {}
+        self.counters = []
 
     def declare_registers(self):
         self.output.write("    const sass_reg RZ = 0;\n")
@@ -34,10 +35,21 @@ class SASS2C:
                         else:
                             self.output.write(f"    // {x}\n")
 
+    def declare_counts(self):
+        for b in self.cfg.blocks:
+            try:
+                t = b.target()
+                cv = f"bbcount_{t}"
+                self.output.write(f"    uint64_t {cv} = 0;\n")
+                self.counters.append(cv)
+            except ValueError:
+                pass
+
     def init_cfg(self, cfg):
         self.cfg = cfg
         self.output.write("#include <stdint.h>\n")
         self.output.write("#include <stdbool.h>\n")
+        self.output.write("#include <stdio.h>\n")
         self.output.write('#include "sass_insns.h"\n\n')
 
         self.output.write("typedef uint32_t sass_reg;\n")
@@ -49,6 +61,7 @@ class SASS2C:
         self.output.write(f"void {func_name}({','.join(args)}) {{\n")
 
         self.declare_registers()
+        self.declare_counts()
 
     def output_block_order(self):
         order = [('_start', -1)]
@@ -146,6 +159,8 @@ class SASS2C:
         if not hasattr(block, '_target'): return
 
         self.output.write(f'label_{block.target()}:\n')
+        self.output.write(f'    bbcount_{block.target()}++;\n')
+
         for i in block.code:
             if not self.xlat_insn(i):
                 self.output.write(f"    // {i.insn}\n")
@@ -153,6 +168,10 @@ class SASS2C:
         self.output.write("\n")
 
     def finish_cfg(self):
+        self.output.write("label_exit:\n")
+        for c in self.counters:
+            self.output.write(f'    printf("{c} = %lu\\n", {c});\n')
+        self.output.write("    ;\n")
         self.output.write("}\n")
 
     def finish(self):
