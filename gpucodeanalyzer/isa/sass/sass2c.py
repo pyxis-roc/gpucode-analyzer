@@ -9,9 +9,10 @@ class SASS2C:
     def declare_registers(self):
         self.output.write("    const sass_reg RZ = 0;\n")
         self.output.write("    const sass_reg URZ = 0;\n")
+        self.output.write("    const sass_reg SRZ = 0;\n")
         self.output.write("    const sass_predicate_reg PT = 1;\n")
 
-        declared = set(['RZ', 'PT', 'URZ'])
+        declared = set(['RZ', 'PT', 'URZ', 'SRZ'])
         for i in self.cfg.all_instructions():
             for x in i.args:
                 if isinstance(x, SASSRegister):
@@ -114,7 +115,7 @@ class SASS2C:
                         if c:
                             o.append(c)
                         else:
-                            self._xlat_failure('constant')
+                            self._xlat_failure(f'constant {a}')
                             return None
                     elif a.startswith('cx['):
                         self._xlat_failure('cx')
@@ -127,7 +128,9 @@ class SASS2C:
 
         args = None
         opcode = None
-        if i.opcode == "S2R":
+        if i.opcode == "CS2R":
+            opcode = "CS2R"
+        elif i.opcode == "S2R":
             opcode = "S2R"
         elif i.opcode.startswith("IMAD"):
             opcode = i.opcode.replace(".", "_")
@@ -145,6 +148,12 @@ class SASS2C:
             opcode = "LOP3_LUT"
             assert i.args[-1] == "!PT", i.args[-1]
             args = process_args(i.args[:-1])
+        elif i.opcode == "ULOP3.LUT": # other variants not yet supported, see ptx
+            opcode = "ULOP3_LUT"
+            assert i.args[-1] == "!UPT", i.args[-1]
+            args = process_args(i.args[:-1])
+        elif i.opcode == "IMNMX.U32":
+            opcode = "IMNMX_U32"
         elif i.opcode.startswith("ISETP."):
             cvtop = i.opcode.replace('.', '_')
             opcode = [cvtop + "_D0"]

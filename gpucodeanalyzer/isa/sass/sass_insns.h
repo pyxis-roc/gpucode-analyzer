@@ -31,3 +31,7 @@
 #define UMOV(dst, src) dst = src
 #define UIADD3(dst, src1, src2, src3) dst = src1 + src2 + src3
 #define LOP3_LUT(dst, src1, src2, src3, immLut) dst = logical_op3(src1, src2, src3, immLut)
+#define ULOP3_LUT(dst, src1, src2, src3, immLut) dst = logical_op3(src1, src2, src3, immLut)
+
+#define CS2R(dst, src) dst = src
+#define IMNMX_U32(dst, src1, src2, mnpred) if(mnpred) { dst = src1 < src2 ? src1 : src2; } else { dst = src1 > src2 ? src1 : src2 } // TODO
