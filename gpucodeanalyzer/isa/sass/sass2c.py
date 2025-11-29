@@ -52,7 +52,7 @@ class SASS2C:
                         if n.startswith("R") or n.startswith("UR"):
                             self.output.write(f"    sass_reg {n};\n")
                             declared.add(n)
-                        elif n.startswith('P'):
+                        elif n.startswith('P') or n.startswith('UP'):
                             self.output.write(f"    sass_predicate_reg {n};\n")
                             declared.add(n)
                         elif n.startswith('SR_CTAID'):
@@ -83,14 +83,14 @@ class SASS2C:
         self.func_name = func_name
         self.output.write("// cfg\n")
 
-        args = ['sass_vec3 GRID_DIM', 'sass_vec3 CTA_DIM']
+        args = ['const sass_vec3 GRID_DIM', 'const sass_vec3 CTA_DIM']
         args.extend(self.xlatinfo.get_args(func_name))
 
         # ugly, but should work, needs to be in a separate globals block
         for l in self.xlatinfo.get_global_decls(func_name):
             self.output.write(l + "\n")
 
-        self.output.write(f"void {func_name}({','.join(args)}) {{\n")
+        self.output.write(f"void {func_name}({', '.join(args)}) {{\n")
 
         self.declare_counts()
         self.output.write(f"    sass_vec3 SR_CTAID;\n")
@@ -148,7 +148,6 @@ class SASS2C:
                             self._xlat_failure(f'constant {a}')
                             return None
                     elif a.startswith('cx['):
-                        print(a, self.xlatinfo.data)
                         c = process_cx_lookup(a)
                         if c:
                             o.append(c)
@@ -190,11 +189,26 @@ class SASS2C:
             opcode = "IMNMX_U32"
         elif i.opcode == "ULDC":
             opcode = "ULDC"
+        elif i.opcode == "ULDC.64": # usually an address
+            args = process_args([i.args[1]])
+            if args[0] == "&":
+                opcode = None
+                args = None
+            else:
+                opcode = "ULDC_64" #TODO: note this should affect two registers!
+                args = process_args(i.args)
+
         elif i.opcode.startswith("ISETP."):
             cvtop = i.opcode.replace('.', '_')
             opcode = [cvtop + "_D0"]
             assert i.args[0] != "PT"
             if isinstance(i.args[1], SASSRegister) and i.args[1].n != "PT": # can't write to constant register
+                opcode.append(cvtop + "_D1")
+        elif i.opcode.startswith("UISETP."):
+            cvtop = i.opcode.replace('.', '_')
+            opcode = [cvtop + "_D0"]
+            assert i.args[0] != "UPT"
+            if isinstance(i.args[1], SASSRegister) and i.args[1].n != "UPT": # can't write to constant register
                 opcode.append(cvtop + "_D1")
         elif i.opcode == "BRA":
             opcode = i.opcode
@@ -207,6 +221,10 @@ class SASS2C:
             assert len(label) == 4, label
 
             args = f'label_{label}'
+        elif i.opcode == "SHF.R.U32.HI":
+            opcode = "SHF_R_U32_HI"
+        elif i.opcode == "USHF.R.U32.HI":
+            opcode = "USHF_R_U32_HI"
         else:
             self._xlat_failure(f'opcode {i.opcode}')
 

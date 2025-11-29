@@ -2,7 +2,7 @@ import re
 from ...generic_cfg import Instruction, ControlInsn, Register, Memory
 
 SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;$")
-SASS_REG_RE = re.compile(r"(((UR|R|!?P|B)\d+)(.reuse)?)|(PT|RZ|URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
+SASS_REG_RE = re.compile(r"(((UR|R|!?P|B|UP)\d+)(.reuse)?)|(UPT|PT|RZ|URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
 
 CX_RE = re.compile(r"cx\[(?P<regbase>.+)\]\[(?P<offset>.+)\]")
 

@@ -1,5 +1,5 @@
 #pragma once
-
+#include <stdint.h>
 
 #define S2R(dst, src) dst = src
 
@@ -28,6 +28,15 @@
 #define ISETP_NE_U32_AND_D0(dst0, dst1, src1, src2, src3) dst0 = (src1 != src2) && src3
 #define ISETP_NE_U32_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
 
+
+#define UISETP_GE_U32_AND_D0(dst0, dst1, src1, src2, src3) ISETP_GE_U32_AND_D0(dst0, dst1, src1, src2, src3)
+#define UISETP_GE_U32_AND_D1(dst0, dst1, src1, src2, src3) ISETP_GE_U32_AND_D1(dst0, dst1, src1, src2, src3)
+
+
+#define UISETP_NE_U32_AND_D0(dst0, dst1, src1, src2, src3) ISETP_NE_U32_AND_D0(dst0, dst1, src1, src2, src3)
+#define UISETP_NE_U32_AND_D1(dst0, dst1, src1, src2, src3) ISETP_NE_U32_AND_D1(dst0, dst1, src1, src2, src3)
+
+
 #define UMOV(dst, src) dst = src
 #define UIADD3(dst, src1, src2, src3) dst = src1 + src2 + src3
 #define LOP3_LUT(dst, src1, src2, src3, immLut) dst = logical_op3(src1, src2, src3, immLut)
@@ -35,3 +44,12 @@
 
 #define CS2R(dst, src) dst = src
 #define IMNMX_U32(dst, src1, src2, mnpred) if(mnpred) { dst = src1 < src2 ? src1 : src2; } else { dst = src1 > src2 ? src1 : src2 } // TODO
+#define ULDC(dst, src) dst = src
+
+#define concat_u32(hi, lo) ((((uint64_t) hi) << 32) | (uint64_t) lo)
+
+#define rotate_right_64(val, rot) rot == 64 ? val : ((val << (64 - rot)) | (val >> rot))
+
+
+#define SHF_R_U32_HI(dst, src1, rot, src2) dst = (rotate_right_64(concat_u32(src2, src1), rot) & 0xFFFFFFFFUL)
+#define USHF_R_U32_HI(dst, src1, rot, src2) SHF_R_U32_HI(dst, src1, rot, src2)
