@@ -31,6 +31,7 @@ class DefUseAnalysis:
         self.defns_n2ri = defs_n2ri
         self.defns_i2n = defs_i2n
 
+
     def reaching_defns(self):
         def get_predecessor_rd(n, b):
             if n == 0:
@@ -86,6 +87,11 @@ class DefUseAnalysis:
 
                 rsub = [self.defns_n2ri[d] for d in reaching]
                 rsub = [x for x in rsub if x[0] in reads]
+
+
+                if len(reads) != len(set([x[0] for x in rsub])):
+                    print("*** MISSING DEFNS ***", i.label, reads, rsub)
+
                 rdefs[i.label] = rsub
 
         self.rdefs = rdefs
@@ -105,7 +111,9 @@ def test():
     da = DefUseAnalysis(cfg)
     da.build_definitions()
     da.reaching_defns()
-    print(da.rdefs)
+    for insn in cfg.all_instructions():
+        print(insn.label, insn.insn, da.rdefs[insn.label])
+
 
 if __name__=="__main__":
     test()

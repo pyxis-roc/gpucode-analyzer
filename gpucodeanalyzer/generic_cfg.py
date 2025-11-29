@@ -154,6 +154,17 @@ class CFG:
         for bb in self.blocks:
             bb._mark_as_predecessor()
 
+
+        self.check_consistency()
+
+    def check_consistency(self):
+        for b in self.blocks:
+            if len(b.predecessors) == 0 and b.name != "_start" and b.target() != "0000": #TODO: fix the 0000
+                print(f"WARNING:generic_cfg:no predecessors: {b.target()}")
+
+            if len(b.successors) == 0 and b.name != "_exit":
+                print(f"WARNING:generic_cfg: no successors: {b.target()}")
+
     def dump(self):
         for b in self.blocks:
             print(b)
