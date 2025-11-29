@@ -109,7 +109,7 @@ class SASSControlInsn(SASSInstruction, ControlInsn):
         return self.predicate is not None
 
 class SASSFile:
-    SASS_CONTROL_INSN = re.compile("EXIT|BRA")
+    SASS_CONTROL_INSN = re.compile("EXIT|BRA|CALL.REL.NOINC")
 
     def __init__(self, f):
         self.f = f
