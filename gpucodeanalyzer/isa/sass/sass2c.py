@@ -181,6 +181,11 @@ class SASS2C:
             opcode = "LOP3_LUT"
             assert i.args[-1] == "!PT", i.args[-1]
             args = process_args(i.args[:-1])
+        elif i.opcode == "PLOP3.LUT":
+            opcode = "PLOP3_LUT"
+            assert i.args[-1] == "0x0", i.args[-1]
+            assert i.args[1].n == "PT", i.args[1]
+            args = process_args(i.args)
         elif i.opcode == "ULOP3.LUT": # other variants not yet supported, see ptx
             opcode = "ULOP3_LUT"
             assert i.args[-1] == "!UPT", i.args[-1]
