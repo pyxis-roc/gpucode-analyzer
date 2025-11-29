@@ -217,8 +217,8 @@ class SASS2C:
             assert i.args[0] != "UPT"
             if isinstance(i.args[1], SASSRegister) and i.args[1].n != "UPT": # can't write to constant register
                 opcode.append(cvtop + "_D1")
-        elif i.opcode == "BRA":
-            opcode = i.opcode
+        elif i.opcode == "BRA" or i.opcode == "CALL.REL.NOINC":
+            opcode = i.opcode.replace(".", "_")
             assert i.args[0].startswith('0x'), i.args[0]
             label = i.args[0][2:]
 
