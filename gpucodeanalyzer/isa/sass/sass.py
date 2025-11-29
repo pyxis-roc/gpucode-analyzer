@@ -40,7 +40,8 @@ class SASSInstruction(Instruction):
     WRITE_COUNT = {'BSYNC': 0,
                    ('IADD3', 5): 2}
 
-    MULTI_WRITER = {'LDG.E.128.STRONG.GPU': {0: 4}}
+    MULTI_WRITER = {'LDG.E.128.STRONG.GPU': {0: 4},
+                    'LDG.E.128.CONSTANT': {0: 4}}
 
     def __init__(self, pc, pred, opcode, args, insn):
         self.label = pc
@@ -54,22 +55,25 @@ class SASSInstruction(Instruction):
             m = SASS_REG_RE.match(a)
             if m is not None:
                 r = None
+                is_inverted = False
+                is_negated = False
+                is_reuse = False
 
-                # TODO: properly record is_inverted, is_negated, is_reuse, etc.
                 if a[0] == "!":
                     a = a[1:]
-                    r = SASSRegister(a, is_inverted = True)
+                    is_inverted = True
 
                 if a[0] == "-":
                     a = a[1:]
-                    r = SASSRegister(a, is_negated = True)
+                    is_negated = True
 
                 if a.endswith(".reuse"):
-                    assert r is None
                     a = a[:-len(".reuse")]
-                    r = SASSRegister(a, is_reuse = True)
-                else:
-                    r = SASSRegister(a)
+                    is_reuse = True
+
+                r = SASSRegister(a, is_inverted = is_inverted,
+                                 is_negated = is_negated,
+                                 is_reuse = is_reuse)
 
                 out.append(r)
             else:
