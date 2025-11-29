@@ -22,10 +22,10 @@ class SASSRegister(Register):
     def is_constant(self):
         return self.n in CONSTANT_REGS
 
-    def operand(self):
+    def operand(self, reuse = True):
         n = self.n
 
-        if self.is_reuse:
+        if reuse and self.is_reuse:
             n = n + ".reuse"
 
         if self.is_inverted:

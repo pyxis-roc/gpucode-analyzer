@@ -136,7 +136,7 @@ class SASS2C:
             o = []
             for a in arglist:
                 if isinstance(a, SASSRegister):
-                    o.append(a.operand())
+                    o.append(a.operand(reuse=False))
                 elif isinstance(a, str):
                     if a.startswith('-') or a.startswith('0x'):
                         o.append(f"(sass_reg) {a}")
@@ -225,7 +225,7 @@ class SASS2C:
             if len(label) < 4:
                 label = "0"*(4-len(label)) + label
 
-            assert len(label) == 4, label
+            assert len(label) >= 4, label
 
             args = f'label_{label}'
         elif i.opcode == "SHF.R.U32.HI":
