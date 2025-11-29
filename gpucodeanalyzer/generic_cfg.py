@@ -181,8 +181,8 @@ class CFG:
 
         return x
 
-    def convert(self, converter):
-        converter.init_cfg(self)
+    def convert(self, converter, func_name): # todo: make func_name a part of cfg
+        converter.init_cfg(self, func_name)
         block_order = converter.output_block_order()
 
         for b in block_order:

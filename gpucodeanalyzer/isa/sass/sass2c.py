@@ -1,10 +1,41 @@
 from .sass import SASSRegister
 
+class XlatInfo:
+    def __init__(self, data):
+        self.data = data
+
+    def functions(self):
+        return self.data.keys()
+
+    def get_function_data(self, fn):
+        return self.data[fn]
+
+    def get_global_decls(self, fn):
+        return self.data[fn].get("global_decl", [])
+
+    def get_args(self, fn):
+        return self.data[fn].get("args", [])
+
+    def map_constant(self, fn, constant):
+        return self.data[fn].get("constant_map", {}).get(constant, None)
+
 class SASS2C:
-    def __init__(self, output):
+    def __init__(self, output, xlatinfo):
         self.output = output
         self.causes = {}
         self.counters = []
+        self.xlatinfo = XlatInfo(xlatinfo)
+
+    def init_module(self):
+        self.output.write("#include <stdint.h>\n")
+        self.output.write("#include <stdbool.h>\n")
+        self.output.write("#include <stdio.h>\n")
+        self.output.write('#include "sass_insns.h"\n\n')
+        self.output.write('#include "lop3_lut.h"\n\n')
+
+        self.output.write("typedef uint32_t sass_reg;\n")
+        self.output.write("typedef bool sass_predicate_reg;\n")
+        self.output.write("typedef struct { sass_reg X; sass_reg Y; sass_reg Z; } sass_vec3;\n\n")
 
     def declare_registers(self):
         self.output.write("    const sass_reg RZ = 0;\n")
@@ -47,26 +78,24 @@ class SASS2C:
             except ValueError:
                 pass
 
-    def init_cfg(self, cfg):
+    def init_cfg(self, cfg, func_name):
         self.cfg = cfg
-        self.output.write("#include <stdint.h>\n")
-        self.output.write("#include <stdbool.h>\n")
-        self.output.write("#include <stdio.h>\n")
-        self.output.write('#include "sass_insns.h"\n\n')
-        self.output.write('#include "lop3_lut.h"\n\n')
-
-        self.output.write("typedef uint32_t sass_reg;\n")
-        self.output.write("typedef bool sass_predicate_reg;\n")
-        self.output.write("typedef struct { sass_reg X; sass_reg Y; sass_reg Z; } sass_vec3;\n\n")
+        self.func_name = func_name
         self.output.write("// cfg\n")
-        func_name = "default_sass_name" # until we get support for functions
-        args = ['sass_vec3 GRID_DIM', 'sass_vec3 CTA_DIM'] # need to work this out
+
+        args = ['sass_vec3 GRID_DIM', 'sass_vec3 CTA_DIM']
+        args.extend(self.xlatinfo.get_args(func_name))
+
+        # ugly, but should work, needs to be in a separate globals block
+        for l in self.xlatinfo.get_global_decls(func_name):
+            self.output.write(l + "\n")
+
         self.output.write(f"void {func_name}({','.join(args)}) {{\n")
 
         self.declare_counts()
         self.output.write(f"    sass_vec3 SR_CTAID;\n")
         self.output.write(f"    sass_vec3 SR_TID;\n")
-        
+
         self.output.write("for(SR_CTAID.Z=0; SR_CTAID.Z<GRID_DIM.Z; SR_CTAID.Z++) {\n")
         self.output.write("for(SR_CTAID.Y=0; SR_CTAID.Y<GRID_DIM.Y; SR_CTAID.Y++) {\n")
         self.output.write("for(SR_CTAID.X=0; SR_CTAID.X<GRID_DIM.X; SR_CTAID.X++) {\n")
@@ -92,15 +121,16 @@ class SASS2C:
     def _xlat_failure(self, cause):
         self.causes[cause] = self.causes.get(cause, 0) + 1
 
-    def xlat_insn(self, i):
+    def xlat_insn(self, i, fn):
         def process_c_lookup(cl):
-            if cl == "c[0x0][0x0]":
-                return "GRID_DIM.X" # webgpu only?
-            else:
-                return None
+            return self.xlatinfo.map_constant(fn, cl)
+            #if cl == "c[0x0][0x0]":
+            #    return "GRID_DIM.X" # webgpu only?
+            #else:
+            #    return None
 
         def process_cx_lookup(cx):
-            return cx
+            return self.xlatinfo.map_constant(fn, cx)
 
         def process_args(arglist):
             o = []
@@ -118,9 +148,13 @@ class SASS2C:
                             self._xlat_failure(f'constant {a}')
                             return None
                     elif a.startswith('cx['):
-                        self._xlat_failure('cx')
-                        return None
-                        o.append(process_cx_lookup(a))
+                        print(a, self.xlatinfo.data)
+                        c = process_cx_lookup(a)
+                        if c:
+                            o.append(c)
+                        else:
+                            self._xlat_failure(f'cxconstant {a}')
+                            return None
                     else:
                         raise NotImplementedError(a)
 
@@ -154,6 +188,8 @@ class SASS2C:
             args = process_args(i.args[:-1])
         elif i.opcode == "IMNMX.U32":
             opcode = "IMNMX_U32"
+        elif i.opcode == "ULDC":
+            opcode = "ULDC"
         elif i.opcode.startswith("ISETP."):
             cvtop = i.opcode.replace('.', '_')
             opcode = [cvtop + "_D0"]
@@ -201,7 +237,7 @@ class SASS2C:
         self.output.write(f'    bbcount_{block.target()}++;\n')
 
         for i in block.code:
-            if not self.xlat_insn(i):
+            if not self.xlat_insn(i, self.func_name):
                 self.output.write(f"    // {i.insn}\n")
 
         self.output.write("\n")
@@ -213,6 +249,7 @@ class SASS2C:
             self.output.write(f'    printf("{c} = %lu\\n", {c});\n')
         self.output.write("    ;\n")
         self.output.write("}\n")
+        self.func_name = ""
 
     def finish(self):
         print(self.causes)
