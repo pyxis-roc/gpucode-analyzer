@@ -25,6 +25,9 @@
 #define ISETP_GE_U32_AND_D0(dst0, dst1, src1, src2, src3) dst0 = (src1 >= src2) && src3
 #define ISETP_GE_U32_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
 
+#define ISETP_GT_U32_AND_D0(dst0, dst1, src1, src2, src3) dst0 = (src1 > src2) && src3
+#define ISETP_GT_U32_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
+
 #define ISETP_NE_U32_AND_D0(dst0, dst1, src1, src2, src3) dst0 = (src1 != src2) && src3
 #define ISETP_NE_U32_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
 
@@ -46,7 +49,7 @@
 #define PLOP3_LUT(dst1, dst2, src1, src2, src3, immLut, src4) dst1 = logical_op3(src1, src2, src3, immLut)
 
 #define CS2R(dst, src) dst = src
-#define IMNMX_U32(dst, src1, src2, mnpred) if(mnpred) { dst = src1 < src2 ? src1 : src2; } else { dst = src1 > src2 ? src1 : src2 } // TODO
+#define IMNMX_U32(dst, src1, src2, mnpred) if(mnpred) { dst = src1 < src2 ? src1 : src2; } else { dst = src1 > src2 ? src1 : src2; } // TODO
 #define ULDC(dst, src) dst = src
 
 #define concat_u32(hi, lo) ((((uint64_t) hi) << 32) | (uint64_t) lo)
@@ -56,3 +59,8 @@
 
 #define SHF_R_U32_HI(dst, src1, rot, src2) dst = (rotate_right_64(concat_u32(src2, src1), rot) & 0xFFFFFFFFUL)
 #define USHF_R_U32_HI(dst, src1, rot, src2) SHF_R_U32_HI(dst, src1, rot, src2)
+
+#define SEL(dst, src1, src2, pred) dst = pred ? src1 : src2
+
+// TODO: is hi taken after the shift or after the add?
+#define LEA_HI(dst, pred, alo, b, ahi, imm_shift) dst = ((concat_u32(ahi, alo) << imm_shift) + b) >> 32

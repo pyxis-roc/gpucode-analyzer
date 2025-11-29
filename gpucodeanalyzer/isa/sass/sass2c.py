@@ -136,7 +136,7 @@ class SASS2C:
             o = []
             for a in arglist:
                 if isinstance(a, SASSRegister):
-                    o.append(a.n)
+                    o.append(a.operand())
                 elif isinstance(a, str):
                     if a.startswith('-') or a.startswith('0x'):
                         o.append(f"(sass_reg) {a}")
@@ -194,15 +194,17 @@ class SASS2C:
             opcode = "IMNMX_U32"
         elif i.opcode == "ULDC":
             opcode = "ULDC"
+        elif i.opcode == "SEL":
+            opcode = "SEL"
         elif i.opcode == "ULDC.64": # usually an address
             args = process_args([i.args[1]])
-            if args[0] == "&":
-                opcode = None
-                args = None
-            else:
-                opcode = "ULDC_64" #TODO: note this should affect two registers!
-                args = process_args(i.args)
-
+            if args is not None:
+                if args[0] == "&":
+                    opcode = None
+                    args = None
+                else:
+                    opcode = "ULDC_64" #TODO: note this should affect two registers!
+                    args = process_args(i.args)
         elif i.opcode.startswith("ISETP."):
             cvtop = i.opcode.replace('.', '_')
             opcode = [cvtop + "_D0"]
