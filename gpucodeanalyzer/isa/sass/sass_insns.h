@@ -10,6 +10,7 @@
 #define IMAD_IADD_U32(dst, src1, src2, src3) IMAD(dst, src1, src2, src3)
 #define IMAD_SHL_U32(dst, src1, src2, src3) IMAD(dst, src1, src2, src3)
 #define IMAD_MOV(dst, src1, src2, src3) IMAD(dst, src1, src2, src3)
+#define IMAD_IADD(dst, src1, src2, src3) IMAD(dst, src1, src2, src3)
 
 #define IADD3(dst, src1, src2, src3) dst = src1 + src2 + src3
 
@@ -17,10 +18,13 @@
 #define BRA(label) goto label
 #define CALL_REL_NOINC(label) goto label
 
-#define ISETP_GT_AND_D0(dst0, dst1, src1, src2, src3) dst0 = (src1 > src2) && src3
+#define ISETP_GT_AND_D0(dst0, dst1, src1, src2, src3) dst0 = ((int32_t) src1 > (int32_t) src2) && src3
 #define ISETP_GT_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
 
-#define ISETP_GE_AND_D0(dst0, dst1, src1, src2, src3) dst0 = (src1 >= src2) && src3
+#define ISETP_LT_AND_D0(dst0, dst1, src1, src2, src3) dst0 = ((int32_t) src1 < (int32_t) src2) && src3
+#define ISETP_LT_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
+
+#define ISETP_GE_AND_D0(dst0, dst1, src1, src2, src3) dst0 = ((int32_t) src1 >= (int32_t) src2) && src3
 #define ISETP_GE_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
 
 #define ISETP_GE_U32_AND_D0(dst0, dst1, src1, src2, src3) dst0 = (src1 >= src2) && src3
@@ -32,13 +36,26 @@
 #define ISETP_NE_U32_AND_D0(dst0, dst1, src1, src2, src3) dst0 = (src1 != src2) && src3
 #define ISETP_NE_U32_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
 
+#define ISETP_NE_AND_D0(dst0, dst1, src1, src2, src3) dst0 = ((int32_t) src1 != (int32_t) src2) && src3
+#define ISETP_NE_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
+
+
+#define ISETP_EQ_U32_AND_D0(dst0, dst1, src1, src2, src3) dst0 = (src1 == src2) && src3
+#define ISETP_EQ_U32_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
+
 
 #define UISETP_GE_U32_AND_D0(dst0, dst1, src1, src2, src3) ISETP_GE_U32_AND_D0(dst0, dst1, src1, src2, src3)
 #define UISETP_GE_U32_AND_D1(dst0, dst1, src1, src2, src3) ISETP_GE_U32_AND_D1(dst0, dst1, src1, src2, src3)
 
+#define UISETP_GT_U32_AND_D0(dst0, dst1, src1, src2, src3) ISETP_GT_U32_AND_D0(dst0, dst1, src1, src2, src3)
+#define UISETP_GT_U32_AND_D1(dst0, dst1, src1, src2, src3) ISETP_GT_U32_AND_D1(dst0, dst1, src1, src2, src3)
+
 
 #define UISETP_NE_U32_AND_D0(dst0, dst1, src1, src2, src3) ISETP_NE_U32_AND_D0(dst0, dst1, src1, src2, src3)
 #define UISETP_NE_U32_AND_D1(dst0, dst1, src1, src2, src3) ISETP_NE_U32_AND_D1(dst0, dst1, src1, src2, src3)
+
+#define UISETP_LT_AND_D0(dst0, dst1, src1, src2, src3) ISETP_LT_AND_D0(dst0, dst1, src1, src2, src3)
+#define UISETP_LT_AND_D1(dst0, dst1, src1, src2, src3) ISETP_LT_AND_D1(dst0, dst1, src1, src2, src3)
 
 
 #define UMOV(dst, src) dst = src
@@ -62,6 +79,9 @@
 #define USHF_R_U32_HI(dst, src1, rot, src2) SHF_R_U32_HI(dst, src1, rot, src2)
 
 #define SEL(dst, src1, src2, pred) dst = pred ? src1 : src2
+#define USEL(dst, src1, src2, pred) SEL(dst, src1, src2, pred)
 
 // TODO: is hi taken after the shift or after the add?
 #define LEA_HI(dst, pred, alo, b, ahi, imm_shift) dst = ((concat_u32(ahi, alo) << imm_shift) + b) >> 32
+
+#define P2R(dst, ign_PR, ign_RZ, pred_set) dst = pred_set

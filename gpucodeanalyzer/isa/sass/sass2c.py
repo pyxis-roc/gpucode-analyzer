@@ -66,7 +66,7 @@ class SASS2C:
                             declared.add('SR_TID.Y')
                             declared.add('SR_TID.Z')
                         else:
-                            self.output.write(f"    // {x}\n")
+                            self.output.write(f"    // unsupported: {x}\n")
 
     def declare_counts(self):
         for b in self.cfg.blocks:
@@ -132,6 +132,20 @@ class SASS2C:
         def process_cx_lookup(cx):
             return self.xlatinfo.map_constant(fn, cx)
 
+        def _decode_regset_imm(regset):
+            rs = int(regset, 16)
+            assert rs < 256, rs
+
+            out = []
+            for i in range(8):
+                if (rs & 1):
+                    out.append(f"(P{i} << {i})")
+
+                rs >>= 1
+                if rs == 0: break
+
+            return " | ".join(out)
+
         def process_args(arglist):
             o = []
             for a in arglist:
@@ -154,6 +168,8 @@ class SASS2C:
                         else:
                             self._xlat_failure(f'cxconstant {a}')
                             return None
+                    elif a == 'PR':
+                        o.append(a)
                     else:
                         raise NotImplementedError(a)
 
@@ -194,8 +210,13 @@ class SASS2C:
             opcode = "IMNMX_U32"
         elif i.opcode == "ULDC":
             opcode = "ULDC"
-        elif i.opcode == "SEL":
-            opcode = "SEL"
+        elif i.opcode == "SEL" or i.opcode == "USEL":
+            opcode = i.opcode
+        elif i.opcode == "P2R":
+            opcode = i.opcode
+            assert i.args[1] == "PR"
+            assert i.args[2].n == "RZ"
+            args = process_args(i.args[:3]) + ", " + _decode_regset_imm(i.args[3])
         elif i.opcode == "ULDC.64": # usually an address
             args = process_args([i.args[1]])
             if args is not None:

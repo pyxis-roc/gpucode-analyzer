@@ -96,6 +96,20 @@ class SASSInstruction(Instruction):
 
         return write_args
 
+    def _decode_predset_imm(self, regset):
+        rs = int(regset, 16)
+        assert rs < 256, rs
+
+        out = []
+        for i in range(8):
+            if (rs & 1):
+                out.append(Register(f"P{i}"))
+
+            rs >>= 1
+            if rs == 0: break
+
+        return out
+
     def reads(self):
         write_args = self.write_count()
         rds = list(x for x in self.args[write_args:] if isinstance(x, Register))
@@ -114,6 +128,9 @@ class SASSInstruction(Instruction):
                 cxm = CX_RE.match(x)
                 if cxm:
                     rds.append(SASSRegister(cxm.group('regbase')))
+
+        if self.opcode == "P2R":
+            rds.extend(self._decode_predset_imm(self.args[-1]))
 
         return rds
 
