@@ -2,4 +2,7 @@
 *.so
 gen_device_props
 __pycache__
+edit-distance
+*.ll
+*.dot
 
