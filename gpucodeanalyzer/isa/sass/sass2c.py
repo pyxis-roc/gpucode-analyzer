@@ -288,6 +288,16 @@ class SASS2C:
 
         self.output.write("\n")
 
+    def generate_caller(self):
+        self.output.write("int main(int argc, char *argv[]) {\n")
+        self.output.write("  sass_vec3 grid_dim, block_dim;\n")
+        self.output.write("  grid_dim.x = ; grid_dim.y = ; grid_dim.z = ;\n")
+        self.output.write("  block_dim.x = ; block_dim.y = ; block_dim.z = ;\n")
+
+        self.output.write(f"  {self.func_name}(grid_dim, block_dim, );\n")
+
+        self.output.write("}\n")
+
     def finish_cfg(self):
         self.output.write("}}}}}}\n")
         self.output.write("label_exit:\n")
@@ -295,6 +305,11 @@ class SASS2C:
             self.output.write(f'    printf("{c} = %lu\\n", {c});\n')
         self.output.write("    ;\n")
         self.output.write("}\n")
+
+
+        self.generate_caller()
+
+
         self.func_name = ""
 
     def finish(self):
