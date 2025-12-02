@@ -81,7 +81,7 @@ class SASS2C:
         for b in self.cfg.blocks:
             try:
                 t = b.target()
-                cv = f"bbcount_{t}"
+                cv = f"{self.func_name}_bbcount_{t}"
                 self.output.write(f"    uint64_t {cv} = 0;\n")
                 self.counters.append(cv)
             except ValueError:
@@ -99,9 +99,9 @@ class SASS2C:
         for l in self.xlatinfo.get_global_decls(func_name):
             self.output.write(l + "\n")
 
+        self.declare_counts()
         self.output.write(f"void {func_name}_thread({', '.join(args)}) {{\n")
 
-        self.declare_counts()
         self.declare_registers()
 
 
@@ -278,7 +278,7 @@ class SASS2C:
         if not hasattr(block, '_target'): return
 
         self.output.write(f'label_{block.target()}:\n')
-        self.output.write(f'    bbcount_{block.target()}++;\n')
+        self.output.write(f'    {self.func_name}_bbcount_{block.target()}++;\n')
 
         for i in block.code:
             if not self.xlat_insn(i, self.func_name):
@@ -313,9 +313,13 @@ class SASS2C:
 
     def finish_cfg(self):
         self.output.write("label_exit:\n")
+        self.output.write("    ;\n")
+        self.output.write("}\n")
+
+
+        self.output.write(f"void {self.func_name}_counters() {{\n")
         for c in self.counters:
             self.output.write(f'    printf("{c} = %lu\\n", {c});\n')
-        self.output.write("    ;\n")
         self.output.write("}\n")
 
         args = ['const sass_vec3 GRID_DIM', 'const sass_vec3 CTA_DIM']
@@ -344,12 +348,13 @@ class SASS2C:
         self.output.write(f"       {self.func_name}_thread({call_args});\n")
 
         self.output.write("     }}}}}}\n")
-
+        self.output.write(f"{self.func_name}_counters();\n")
         self.output.write("}\n")
 
         self.generate_caller()
 
         self.func_name = ""
+        self.counters = []
 
     def finish(self):
         print(self.causes)
