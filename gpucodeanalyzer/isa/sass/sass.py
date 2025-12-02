@@ -3,11 +3,14 @@ from ...generic_cfg import Instruction, ControlInsn, Register, Memory
 
 SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;$")
 SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(.reuse)?)|(UPT|PT|RZ|URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
+SASS_ADDR_RE = re.compile(r"\[(?P<reg1>R[0-9Z]+)(\.(?P<suff>U32|X16))?(\+(?P<reg2>UR[0-9Z]+)|(?P<imm>0x.+))?\]")
 
 CX_RE = re.compile(r"-?cx\[(?P<regbase>.+)\]\[(?P<offset>.+)\]")
 
 CONSTANT_REGS = set(['RZ', 'SRZ', 'URZ', 'PT', 'UPT', 'SR_TID.X', 'SR_CTAID.X',
                      'SR_TID.Y', 'SR_TID.Z', 'SR_CTAID.Y', 'SR_CTAID.Z'])
+
+
 
 
 class SASSRegister(Register):
@@ -35,6 +38,24 @@ class SASSRegister(Register):
             return "-" + n
 
         return n
+
+class SASSAddress(Memory):
+    def __init__(self, addr, reg1, suff, reg2, imm):
+        self.addr = addr
+        self.reg1 = Register(reg1)
+        self.suff = suff
+        self.reg2 = Register(reg2) if reg2 else None
+        self.imm = imm
+
+    def __str__(self):
+        return self.addr
+
+    def registers(self):
+        out = [self.reg1]
+        if self.reg2:
+            out.append(self.reg2)
+
+        return out
 
 class SASSInstruction(Instruction):
     WRITE_COUNT = {'BSYNC': 0,
@@ -77,7 +98,15 @@ class SASSInstruction(Instruction):
 
                 out.append(r)
             else:
-                out.append(a)
+                m = SASS_ADDR_RE.match(a)
+                if m:
+                    addr = SASSAddress(a, reg1 = m.group('reg1'),
+                                       suff = m.group('suff'),
+                                       reg2 = m.group('reg2'),
+                                       imm = m.group('imm'))
+                    out.append(addr)
+                else:
+                    out.append(a)
 
         self.args = out
 
@@ -131,6 +160,10 @@ class SASSInstruction(Instruction):
 
         if self.opcode == "P2R":
             rds.extend(self._decode_predset_imm(self.args[-1]))
+
+        for x in self.args[write_args:]:
+            if isinstance(x, SASSAddress):
+                rds.extend(x.registers())
 
         return rds
 
