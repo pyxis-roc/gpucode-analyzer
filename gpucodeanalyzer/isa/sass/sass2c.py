@@ -16,6 +16,15 @@ class XlatInfo:
     def get_args(self, fn):
         return self.data[fn].get("args", [])
 
+    def get_block_dim(self, fn):
+        return self.data[fn].get('block_dim', None)
+
+    def get_grid_dim(self, fn):
+        return self.data[fn].get('grid_dim', None)
+
+    def get_arg_values(self, fn):
+        return self.data[fn].get('arg_values', [])
+
     def map_constant(self, fn, constant):
         return self.data[fn].get("constant_map", {}).get(constant, None)
 
@@ -83,27 +92,16 @@ class SASS2C:
         self.func_name = func_name
         self.output.write("// cfg\n")
 
-        args = ['const sass_vec3 GRID_DIM', 'const sass_vec3 CTA_DIM']
+        args = ['const sass_vec3 GRID_DIM', 'const sass_vec3 CTA_DIM', 'const sass_vec3 SR_CTAID', 'const sass_vec3 SR_TID']
         args.extend(self.xlatinfo.get_args(func_name))
 
         # ugly, but should work, needs to be in a separate globals block
         for l in self.xlatinfo.get_global_decls(func_name):
             self.output.write(l + "\n")
 
-        self.output.write(f"void {func_name}({', '.join(args)}) {{\n")
+        self.output.write(f"void {func_name}_thread({', '.join(args)}) {{\n")
 
         self.declare_counts()
-        self.output.write(f"    sass_vec3 SR_CTAID;\n")
-        self.output.write(f"    sass_vec3 SR_TID;\n")
-
-        self.output.write("for(SR_CTAID.Z=0; SR_CTAID.Z<GRID_DIM.Z; SR_CTAID.Z++) {\n")
-        self.output.write("for(SR_CTAID.Y=0; SR_CTAID.Y<GRID_DIM.Y; SR_CTAID.Y++) {\n")
-        self.output.write("for(SR_CTAID.X=0; SR_CTAID.X<GRID_DIM.X; SR_CTAID.X++) {\n")
-
-        self.output.write("  for(SR_TID.Z=0; SR_TID.Z<CTA_DIM.Z; SR_TID.Z++) {\n")
-        self.output.write("  for(SR_TID.Y=0; SR_TID.Y<CTA_DIM.Y; SR_TID.Y++) {\n")
-        self.output.write("  for(SR_TID.X=0; SR_TID.X<CTA_DIM.X; SR_TID.X++) {\n")
-
         self.declare_registers()
 
 
@@ -290,25 +288,66 @@ class SASS2C:
 
     def generate_caller(self):
         self.output.write("int main(int argc, char *argv[]) {\n")
-        self.output.write("  sass_vec3 grid_dim, block_dim;\n")
-        self.output.write("  grid_dim.x = ; grid_dim.y = ; grid_dim.z = ;\n")
-        self.output.write("  block_dim.x = ; block_dim.y = ; block_dim.z = ;\n")
 
-        self.output.write(f"  {self.func_name}(grid_dim, block_dim, );\n")
+        bdim = self.xlatinfo.get_block_dim(self.func_name)
+        gdim = self.xlatinfo.get_grid_dim(self.func_name)
+
+        if bdim:
+            bdim = ",".join(str(x) for x in bdim)
+        else:
+            bdim = ""
+
+        if gdim:
+            gdim = ",".join(str(x) for x in gdim)
+        else:
+            gdim = ""
+
+        self.output.write(f"  sass_vec3 grid_dim = {{{gdim}}}, block_dim = {{{bdim}}};\n")
+
+        arg_values = ", ".join(self.xlatinfo.get_arg_values(self.func_name))
+        if arg_values != "": arg_values = ", " + arg_values
+
+        self.output.write(f"  {self.func_name}(grid_dim, block_dim{arg_values});\n")
 
         self.output.write("}\n")
 
     def finish_cfg(self):
-        self.output.write("}}}}}}\n")
         self.output.write("label_exit:\n")
         for c in self.counters:
             self.output.write(f'    printf("{c} = %lu\\n", {c});\n')
         self.output.write("    ;\n")
         self.output.write("}\n")
 
+        args = ['const sass_vec3 GRID_DIM', 'const sass_vec3 CTA_DIM']
+        args.extend(self.xlatinfo.get_args(self.func_name))
+
+        self.output.write(f"void {self.func_name}({', '.join(args)}) {{\n")
+
+        self.output.write(f"    sass_vec3 SR_CTAID;\n")
+        self.output.write(f"    sass_vec3 SR_TID;\n")
+
+        self.output.write("    for(SR_CTAID.Z=0; SR_CTAID.Z<GRID_DIM.Z; SR_CTAID.Z++) {\n")
+        self.output.write("    for(SR_CTAID.Y=0; SR_CTAID.Y<GRID_DIM.Y; SR_CTAID.Y++) {\n")
+        self.output.write("    for(SR_CTAID.X=0; SR_CTAID.X<GRID_DIM.X; SR_CTAID.X++) {\n")
+
+        self.output.write("      for(SR_TID.Z=0; SR_TID.Z<CTA_DIM.Z; SR_TID.Z++) {\n")
+        self.output.write("      for(SR_TID.Y=0; SR_TID.Y<CTA_DIM.Y; SR_TID.Y++) {\n")
+        self.output.write("      for(SR_TID.X=0; SR_TID.X<CTA_DIM.X; SR_TID.X++) {\n")
+
+        call_args = ['GRID_DIM', 'CTA_DIM', 'SR_CTAID', 'SR_TID']
+
+        # TODO: get arg name more robustly
+        call_args.extend([x.split(" ")[-1] for x in self.xlatinfo.get_args(self.func_name)])
+
+        call_args = ", ".join(call_args)
+
+        self.output.write(f"       {self.func_name}_thread({call_args});\n")
+
+        self.output.write("     }}}}}}\n")
+
+        self.output.write("}\n")
 
         self.generate_caller()
-
 
         self.func_name = ""
 

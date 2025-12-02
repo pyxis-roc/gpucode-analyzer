@@ -14,7 +14,7 @@
 
 #define IADD3(dst, src1, src2, src3) dst = src1 + src2 + src3
 
-#define EXIT() continue
+#define EXIT() goto label_exit
 #define BRA(label) goto label
 #define CALL_REL_NOINC(label) goto label
 
