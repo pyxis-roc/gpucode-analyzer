@@ -62,7 +62,8 @@ class SASSInstruction(Instruction):
                    ('IADD3', 5): 2}
 
     MULTI_WRITER = {'LDG.E.128.STRONG.GPU': {0: 4},
-                    'LDG.E.128.CONSTANT': {0: 4}}
+                    'LDG.E.128.CONSTANT': {0: 4},
+                    'ULDC.64': {0: 2}}
 
     def __init__(self, pc, pred, opcode, args, insn):
         self.label = pc
@@ -169,9 +170,13 @@ class SASSInstruction(Instruction):
 
     def writes(self):
         def extend(r, n):
-            assert r.n[0] == "R"
-            rno = int(r.n[1:])
-            return [SASSRegister(f"R{d}") for d in range(rno, rno+n)]
+            if r.n[0] == "R":
+                pfx = "R"
+            elif r.n[0] == "U":
+                pfx = "UR"
+
+            rno = int(r.n[len(pfx):])
+            return [SASSRegister(f"{pfx}{d}") for d in range(rno, rno+n)]
 
         write_args = self.write_count()
         writes = list(x for x in self.args[:write_args] if isinstance(x, Register) and not x.is_constant())
