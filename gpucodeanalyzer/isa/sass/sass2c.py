@@ -47,14 +47,16 @@ class SASS2C:
         self.output.write("typedef struct { sass_reg X; sass_reg Y; sass_reg Z; } sass_vec3;\n\n")
 
         self.output.write("bool debug_output;\n");
+        self.output.write("bool debug_flow;\n");
 
     def declare_registers(self):
         self.output.write("    const sass_reg RZ = 0;\n")
         self.output.write("    const sass_reg URZ = 0;\n")
         self.output.write("    const sass_reg SRZ = 0;\n")
         self.output.write("    const sass_predicate_reg PT = 1;\n")
+        self.output.write("    const sass_predicate_reg UPT = 1;\n")
 
-        declared = set(['RZ', 'PT', 'URZ', 'SRZ'])
+        declared = set(['RZ', 'PT', 'URZ', 'SRZ', 'UPT'])
         for i in self.cfg.all_instructions():
             for x in i.args:
                 if isinstance(x, SASSRegister):
@@ -282,6 +284,7 @@ class SASS2C:
 
         self.output.write(f'label_{block.target()}:\n')
         self.output.write(f'    {self.func_name}_bbcount_{block.target()}++;\n')
+        self.output.write(f'    if(debug_flow) printf("{block.target()}\\n");\n')
 
         for i in block.code:
             if not self.xlat_insn(i, self.func_name):
