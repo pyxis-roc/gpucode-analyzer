@@ -112,7 +112,7 @@ class CFG:
 
         for i in self.codefile.code:
             if next_is_start:
-                starts.add(i)
+                starts.add(i.label)
                 next_is_start = False
 
             if i.is_control():
