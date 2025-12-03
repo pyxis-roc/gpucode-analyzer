@@ -88,7 +88,6 @@ class DefUseAnalysis:
                 rsub = [self.defns_n2ri[d] for d in reaching]
                 rsub = [x for x in rsub if x[0] in reads]
 
-
                 if len(reads) != len(set([x[0] for x in rsub])):
                     print("*** MISSING DEFNS ***", i.label, reads, rsub)
 
@@ -112,7 +111,7 @@ def test():
     da.build_definitions()
     da.reaching_defns()
     for insn in cfg.all_instructions():
-        print(insn.label, insn.insn, da.rdefs[insn.label])
+        print(insn.label, insn.insn, da.rdefs[insn.label], insn.reads(), insn.writes())
 
 
 if __name__=="__main__":
