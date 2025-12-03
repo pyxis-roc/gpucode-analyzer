@@ -46,6 +46,8 @@ class SASS2C:
         self.output.write("typedef bool sass_predicate_reg;\n")
         self.output.write("typedef struct { sass_reg X; sass_reg Y; sass_reg Z; } sass_vec3;\n\n")
 
+        self.output.write("bool debug_output;\n");
+
     def declare_registers(self):
         self.output.write("    const sass_reg RZ = 0;\n")
         self.output.write("    const sass_reg URZ = 0;\n")
@@ -259,6 +261,7 @@ class SASS2C:
                 args = process_args(i.args)
 
             if args is not None:
+                self.output.write(f"    /* {i.label} */    ")
                 if(i.predicate):
                     self.output.write(f"    if({i.predicate})\n    ")
 
@@ -282,7 +285,19 @@ class SASS2C:
 
         for i in block.code:
             if not self.xlat_insn(i, self.func_name):
-                self.output.write(f"    // {i.insn}\n")
+                self.output.write(f"    // {i.label} {i.insn}\n")
+            else:
+                dbg_spec = []
+                dbg_args = []
+                for r in i.writes():
+                    if isinstance(r, SASSRegister):
+                        dbg_spec.append(f"{r.n}: %x ")
+                        dbg_args.append(r.n)
+
+                if len(dbg_spec):
+                    fmt_str = '"' + ''.join(dbg_spec) + '"'
+                    fmt_val = ", ".join(dbg_args)
+                    self.output.write(f'    if(debug_output) printf({fmt_str}"\\n", {fmt_val});\n')
 
         self.output.write("\n")
 
