@@ -111,7 +111,7 @@ def test():
     da.build_definitions()
     da.reaching_defns()
     for insn in cfg.all_instructions():
-        print(insn.label, insn.insn, da.rdefs[insn.label], insn.reads(), insn.writes())
+        print(insn.label, insn.insn, da.rdefs[insn.label], "reads", insn.reads(), "writes", insn.writes())
 
 
 if __name__=="__main__":
