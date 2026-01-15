@@ -45,9 +45,9 @@ class SASSRegister(Register):
 class SASSAddress(Memory):
     def __init__(self, addr, reg1, suff, reg2, imm):
         self.addr = addr
-        self.reg1 = Register(reg1)
+        self.reg1 = SASSRegister(reg1)
         self.suff = suff
-        self.reg2 = Register(reg2) if reg2 else None
+        self.reg2 = SASSRegister(reg2) if reg2 else None
         self.imm = imm
 
     def __str__(self):
@@ -66,7 +66,9 @@ class SASSInstruction(Instruction):
 
     MULTI_WRITER = {'LDG.E.128.STRONG.GPU': {0: 4},
                     'LDG.E.128.CONSTANT': {0: 4},
-                    'ULDC.64': {0: 2}}
+                    'ULDC.64': {0: 2},
+                    'HMMA.16816.F32': {0: 4}}
+                    #'LDSM.16.M88.4': {0: 4}} #???
 
     def __init__(self, pc, pred, opcode, args, insn):
         self.label = pc
