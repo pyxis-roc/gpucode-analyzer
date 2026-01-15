@@ -6,4 +6,5 @@ edit-distance
 *.ll
 *.dot
 *.pyc
+*.egg-info
 
