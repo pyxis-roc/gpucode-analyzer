@@ -135,7 +135,7 @@ class SASSClassifier:
         elif cls == 'conversion/float':
             return {'conversion': 32} # for now
         elif cls == 'tc-arithmetic/fp16':
-            return {'fp16-arithmetic': (7*32)} # TODO: actual count 
+            return {'fp16-arithmetic': (7*32)} # TODO: actual count
         else:
             print("Unhandled in intensity", cls)
             return {}
