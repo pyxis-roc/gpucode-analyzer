@@ -1,7 +1,10 @@
 import re
 from ...generic_cfg import Instruction, ControlInsn, Register, Memory
 
-SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;$")
+# assemblies extracted from nvuc files are "bare" with no function name and have one function.
+# assemblies dumped from cuobjdump usually have function name information and are multiple functions.
+
+SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;(\s*/\* 0x([0-9a-f]+) \*/)?$")
 SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(.reuse)?)|(UPT|PT|RZ|URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
 SASS_ADDR_RE = re.compile(r"\[(?P<reg1>R[0-9Z]+)(\.(?P<suff>U32|X16))?(\+(?P<reg2>UR[0-9Z]+)|(?P<imm>0x.+))?\]")
 
@@ -241,6 +244,9 @@ class SASSFile:
     def _parse(self, sassfile):
         with open(sassfile, "r") as f:
             self.code = list(filter(None, (self._mkinsn(l) for l in f)))
+
+        if len(self.code) == 0:
+            print(f"WARNING:sass: No instructions matched regexp in {sassfile}")
 
     def _mkinsn(self, sassinsn):
         m = SASS_INSN_RE.match(sassinsn)

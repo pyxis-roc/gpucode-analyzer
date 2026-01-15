@@ -41,7 +41,7 @@ class Skeletonizer:
         return ocfg
 
 
-def test():
+def main():
     from gpucodeanalyzer.isa.sass import SASSFile
     from gpucodeanalyzer.generic_cfg import CFG
     import argparse
@@ -64,4 +64,4 @@ def test():
         #cfg.dump_dot(f, xinsn = lambda i: i.insn if i.label in sk.important else '')
 
 if __name__ == "__main__":
-    test()
+    main()
