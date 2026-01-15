@@ -31,7 +31,7 @@ def test():
         xlatinfo = yaml.safe_load(f)
 
     if args.func_name is None:
-        if len(xlatinfo) == 1:
+        if xlatinfo is not None and len(xlatinfo) == 1:
             args.func_name = list(xlatinfo.keys())[0]
         else:
             print("ERROR: You need to specify a function to translate using -f") # for now
