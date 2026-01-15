@@ -4,7 +4,7 @@ import re
 from collections import namedtuple
 
 BBCount = namedtuple('BBCount', 'function label count')
-COUNT_RE = re.compile('^(?P<function>.*)_bbcount_(?P<label>.*) = (?P<count>\d+)$')
+COUNT_RE = re.compile(r'^(?P<function>.*)_bbcount_(?P<label>.*) = (?P<count>\d+)$')
 
 def get_instruction_counts(cfg, fncounts, classifier):
     class_count = {}
@@ -17,17 +17,21 @@ def get_instruction_counts(cfg, fncounts, classifier):
         else:
             countinfo = fncounts[b.target()]
             for i in b.code:
-                cls = classifier.classify(i)
-                if cls not in class_count:
-                    class_count[cls] = 0
+                lcls = classifier.classify(i)
+                if not isinstance(lcls, list):
+                    lcls = [lcls]
 
-                class_count[cls] += countinfo.count
-                ins = classifier.intensity(cls)
-                for k in ins:
-                    intensity[k] = intensity.get(k, 0) + ins[k] * countinfo.count
+                for cls in lcls:
+                    if cls not in class_count:
+                        class_count[cls] = 0
 
-                if cls == "unknown":
-                    print(i.label, i.insn, countinfo.count, cls)
+                    class_count[cls] += countinfo.count
+                    ins = classifier.intensity(cls)
+                    for k in ins:
+                        intensity[k] = intensity.get(k, 0) + ins[k] * countinfo.count
+
+                    if cls == "unknown":
+                        print(i.label, i.insn, countinfo.count, cls)
 
     print(class_count)
     print(intensity)
