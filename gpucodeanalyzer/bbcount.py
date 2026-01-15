@@ -50,7 +50,7 @@ def load_bbcount(countfile):
 
     return out
 
-def test():
+def main():
     from gpucodeanalyzer.isa.sass import SASSFile, SASS2C, SASSClassifier
     from gpucodeanalyzer.generic_cfg import CFG
 
@@ -79,4 +79,4 @@ def test():
         #print(counts[fn])
 
 if __name__ == "__main__":
-    test()
+    main()

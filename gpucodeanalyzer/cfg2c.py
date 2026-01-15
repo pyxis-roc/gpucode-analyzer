@@ -1,7 +1,7 @@
 from .generic_cfg import Register
 from .def_use import DefUseAnalysis
 
-def test():
+def main():
     from gpucodeanalyzer.isa.sass import SASSFile, SASS2C
     from gpucodeanalyzer.generic_cfg import CFG
     from gpucodeanalyzer.skeletonizer import Skeletonizer
@@ -45,4 +45,4 @@ def test():
         op.finish()
 
 if __name__ == "__main__":
-    test()
+    main()

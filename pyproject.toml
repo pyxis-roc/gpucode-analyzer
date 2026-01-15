@@ -15,3 +15,6 @@ license="MIT"
 [project.scripts]
 buildcfg="gpucodeanalyzer.buildcfg:main"
 skelcfg="gpucodeanalyzer.skeletonizer:main"
+classcfg="gpucodeanalyzer.classifier:main"
+bbcount="gpucodeanalyzer.bbcount:main"
+cfg2c="gpucodeanalyzer.cfg2c:main"
