@@ -13,8 +13,40 @@ Install this in develop mode, by executing in the directory:
 pip install -e .
 ```
 
+## Utilities
 
-## Usage
+### buildcfg
+
+Run `buildcfg` to obtain a control flow graph as a DOT file.
+
+### skelcfg
+
+Run `skelcfg` to obtain a skeletonized control-flow graph as a DOT file.
+
+### classcfg
+
+Run `classcfg` to obtain the classification of each instruction, as
+well as a static summary count.
+
+### cfg2c
+
+Run `cfg2c` to convert CFG to its skeleton and then to C. This is an
+experimental tool not meant for general use. It only works for SASS
+files. It outputs a C file which when run will output a basic block
+count.
+
+## bbcount
+
+Run `bbcount` with the source code and the basic block count to obtain
+the the frequency of each instruction. A count of generic operations
+is also provided.
+
+
+## Usage as a Library
+
+NOTE: This section is obsolete. A generic dispatcher that can
+recognize file formats and return the appropriate loader is available,
+see `classifier.py` for example usage.
 
 First you must load the code using an ISA-specific loader. For SASS,
 this is the `SASSFile` loader.
