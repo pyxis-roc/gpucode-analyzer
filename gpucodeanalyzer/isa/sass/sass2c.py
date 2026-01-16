@@ -148,11 +148,13 @@ class SASS2C:
 
             return " | ".join(out)
 
-        def process_args(arglist):
+        def process_args(arglist, expand_dst_adj = 0):
             o = []
-            for a in arglist:
+            for ndx, a in enumerate(arglist):
                 if isinstance(a, SASSRegister):
                     o.append(a.operand(reuse=False))
+                    if ndx == 0 and expand_dst_adj:
+                        o.extend([aa.operand(reuse=False) for aa in a.adjacent(expand_dst_adj)])
                 elif isinstance(a, str):
                     if a.startswith('-') or a.startswith('0x'):
                         o.append(f"(sass_reg) {a}")
@@ -226,8 +228,9 @@ class SASS2C:
                     opcode = None
                     args = None
                 else:
-                    opcode = "ULDC_64" #TODO: note this should affect two registers!
-                    args = process_args(i.args)
+                    opcode = "ULDC_64"
+                    args = process_args(i.args, expand_dst_adj = 1)
+
         elif i.opcode.startswith("ISETP."):
             cvtop = i.opcode.replace('.', '_')
             opcode = [cvtop + "_D0"]
@@ -255,6 +258,10 @@ class SASS2C:
             opcode = "SHF_R_U32_HI"
         elif i.opcode == "USHF.R.U32.HI":
             opcode = "USHF_R_U32_HI"
+        elif i.opcode == "SHF.R.S32.HI":
+            opcode = "SHF_R_S32_HI"
+        elif i.opcode == "USHF.R.S32.HI":
+            opcode = "USHF_R_S32_HI"
         else:
             self._xlat_failure(f'opcode {i.opcode}')
 

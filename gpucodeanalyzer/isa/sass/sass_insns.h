@@ -78,6 +78,10 @@
 #define SHF_R_U32_HI(dst, src1, rot, src2) dst = ((rotate_right_64(concat_u32(src2, src1), rot) >> 32) & 0xFFFFFFFFUL)
 #define USHF_R_U32_HI(dst, src1, rot, src2) SHF_R_U32_HI(dst, src1, rot, src2)
 
+#define SHF_R_S32_HI(dst, src1, rot, src2) dst = (int32_t) ((int64_t) (rotate_right_64(concat_u32(src2, src1), rot) >> 32))
+#define USHF_R_S32_HI(dst, src1, rot, src2) SHF_R_S32_HI(dst, src1, rot, src2)
+
+
 #define SEL(dst, src1, src2, pred) dst = pred ? src1 : src2
 #define USEL(dst, src1, src2, pred) SEL(dst, src1, src2, pred)
 

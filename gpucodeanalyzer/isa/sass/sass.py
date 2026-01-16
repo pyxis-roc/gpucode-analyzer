@@ -39,6 +39,15 @@ class SASSRegister(Register):
 
         return n
 
+    def adjacent(self, adj = 1):
+        regno = re.compile(r'(?P<prefix>[^0-9]+)(?P<num>\d+)$')
+        m = regno.search(self.n)
+        assert m is not None
+        pfx = m.group('prefix')
+        r = int(m.group('num'))
+
+        return [SASSRegister(f"{pfx}{n}") for n in range(r+1, r+adj+1)]
+
 class SASSAddress(Memory):
     def __init__(self, addr, reg1, suff, reg2, imm):
         self.addr = addr
