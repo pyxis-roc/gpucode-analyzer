@@ -6,6 +6,19 @@ from collections import namedtuple
 BBCount = namedtuple('BBCount', 'function label count')
 COUNT_RE = re.compile(r'^(?P<function>.*)_bbcount_(?P<label>.*) = (?P<count>\d+)$')
 
+def raw_instruction_counts(cfg, fncounts, classifier):
+    for b in cfg.blocks:
+        tgt = b.target()
+        if tgt not in fncounts:
+            print(f"WARNING: Basic block {tgt} does not have counts")
+        else:
+            countinfo = fncounts[b.target()]
+            print(" ")
+            for i in b.code:
+                cls = classifier.classify(i)
+                if not isinstance(cls, list): cls = [cls]
+                print(i.label, i.insn, "*", countinfo.count, "*", " ".join(cls))
+
 def get_instruction_counts(cfg, fncounts, classifier):
     class_count = {}
     intensity = {}
@@ -61,6 +74,7 @@ def main():
     p = argparse.ArgumentParser(description="Count instructions")
     p.add_argument("sassfile", help="SASS file, usually a single module only.")
     p.add_argument("bbcount", help="Output of a basic-block counter")
+    p.add_argument("--raw", action="store_true", help="Output raw counts")
 
     args = p.parse_args()
 
@@ -75,8 +89,10 @@ def main():
         raise NotImplementedError("Do not support multiple functions in CFG")
 
     for fn in counts:
-        get_instruction_counts(cfg, counts[fn], clsfy)
-        #print(counts[fn])
+        if args.raw:
+            raw_instruction_counts(cfg, counts[fn], clsfy)
+        else:
+            get_instruction_counts(cfg, counts[fn], clsfy)
 
 if __name__ == "__main__":
     main()
