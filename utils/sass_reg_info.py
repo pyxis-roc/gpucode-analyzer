@@ -34,7 +34,7 @@ if __name__ == "__main__":
     import argparse
 
     p = argparse.ArgumentParser(description="Parse nvdisasm output to obtain instruction register information")
-    p.add_argument("plrfile",  help="File to process (output of nvdisasm -plr)")
+    p.add_argument("plrfile",  help="File to process (output of nvdisasm -plr -lrm narrow)")
 
     args = p.parse_args()
 
