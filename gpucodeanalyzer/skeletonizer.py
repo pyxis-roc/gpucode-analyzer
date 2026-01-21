@@ -8,16 +8,8 @@ class Skeletonizer:
         self.da.build_definitions()
         self.da.reaching_defns()
 
-    def build_skeleton(self):
-        important = set()
-        to_process = []
-
-        for b in self.cfg.blocks:
-            last_insn = b.code[-1]
-            if last_insn.is_control():
-                if last_insn.label not in important:
-                    important.add(last_insn.label)
-                    to_process.append(last_insn.label)
+    def _mark_important(self, important):
+        to_process = list(important)
 
         while len(to_process):
             new_to_process = []
@@ -30,7 +22,18 @@ class Skeletonizer:
 
             to_process = new_to_process
 
-        self.important = important
+        return important
+
+    def build_skeleton(self):
+        important = set()
+
+        for b in self.cfg.blocks:
+            last_insn = b.code[-1]
+            if last_insn.is_control():
+                if last_insn.label not in important:
+                    important.add(last_insn.label)
+
+        self.important = self._mark_important(important)
 
     def get_skeleton_cfg(self):
         ocfg = self.cfg.copy()
