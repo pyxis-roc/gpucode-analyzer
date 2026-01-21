@@ -90,11 +90,16 @@ class CFG:
         self.blocks = []
         self.labels_to_blocks = {'_start': BasicBlock('start', []),
                                  '_exit': BasicBlock('exit', [])}
+        self.names_to_blocks = {'_start': self.labels_to_blocks['_start'],
+                                '_exit': self.labels_to_blocks['_exit'],
+                                }
 
     def build(self):
         def add_bb(bbcode, ndx, last_bb):
             bb = BasicBlock(f"BB{ndx}", bbcode)
             self.blocks.append(bb)
+
+            self.names_to_blocks[bb.name] = bb
             self.labels_to_blocks[bb.code[0].label] = bb
 
             if last_bb and len(last_bb.code):
