@@ -9,12 +9,13 @@ requires-python=">= 3.9"
 authors = [
         {name="Sreepathi Pai", email="sree@cs.rochester.edu"},
 ]
-description="A generic framework for analyzing GPU code"
+description="A generic framework for analyzing GPU code at the assembly level"
 license="MIT"
 
 [project.scripts]
-buildcfg="gpucodeanalyzer.buildcfg:main"
-skelcfg="gpucodeanalyzer.skeletonizer:main"
-classcfg="gpucodeanalyzer.classifier:main"
-bbcount="gpucodeanalyzer.bbcount:main"
-cfg2c="gpucodeanalyzer.cfg2c:main"
+gca-buildcfg="gpucodeanalyzer.buildcfg:main"
+gca-skelcfg="gpucodeanalyzer.skeletonizer:main"
+gca-classcfg="gpucodeanalyzer.classifier:main"
+gca-bbcount="gpucodeanalyzer.bbcount:main"
+gca-cfg2c="gpucodeanalyzer.cfg2c:main"
+gca-slice="gpucodeanalyzer.slice:main"
