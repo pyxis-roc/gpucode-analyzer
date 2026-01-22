@@ -49,6 +49,19 @@ class BasicBlock:
         self.successors = {}
         self.predecessors = {}
 
+    def reverse(self):
+        succ = {}
+        pred = {}
+
+        for s in self.successors.values():
+            pred[s.name] = s
+
+        for p in self.predecessors.values():
+            succ[p.name] = p
+
+        self.successors = succ
+        self.predecessors = pred
+
     def add_successor(self, label, bb):
         # TODO: prevent duplicate adding?
         assert label not in self.successors, f"Duplicate successor label {label}"
@@ -193,11 +206,15 @@ class CFG:
         l2b = {}
         l2b['_start'] = self.labels_to_blocks['_start'].copy()
         l2b['_exit'] = self.labels_to_blocks['_exit'].copy()
+
         l2b.update(dict((b.code[0].label, b) for b in x.blocks if len(b.code)))
 
         # note, doesn't deep copy instructions
         for l in self.labels_to_blocks:
             x.labels_to_blocks[l] = l2b[l]
+
+        # note, doesn't deep copy instructions
+        x.names_to_blocks = dict([(b.name, b) for b in x.blocks])
 
         return x
 
@@ -209,6 +226,10 @@ class CFG:
             converter.convert_block(self.labels_to_blocks[b])
 
         converter.finish_cfg()
+
+    def reverse(self):
+        for b in self.blocks:
+            b.reverse()
 
     def all_instructions(self):
         for b in self.blocks:
