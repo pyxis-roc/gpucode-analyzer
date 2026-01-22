@@ -59,6 +59,11 @@ class Dominators(DFA):
         else:
             return dom
 
+    def reverse(self):
+        self.cfg = self.cfg.copy()
+        self.cfg.reverse()
+        self.reversed = True
+
 def main():
     from gpucodeanalyzer.generic_cfg import CFG
     from gpucodeanalyzer.isa.loader import get_dispatcher
@@ -73,8 +78,10 @@ def main():
 
     cfg = CFG(code)
     cfg.build()
-    cfg.dump_dot(open('test.dot', 'w'))
+
     dom = Dominators(cfg)
+    dom.reverse()
+    dom.cfg.dump_dot(open('rev.dot', 'w'))
     dom.compute_dominators()
     for b in cfg.blocks:
         print(b.name, dom.DOM(b))

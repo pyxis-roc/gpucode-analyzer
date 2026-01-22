@@ -1,14 +1,45 @@
 from .generic_cfg import Register
 from .def_use import DefUseAnalysis
 from .skeletonizer import Skeletonizer
-from gpucodeanalyzer.isa.loader import get_dispatcher
+from .analyses.dom import Dominators
 
 class Slicer(Skeletonizer):
     def slice(self, addresses):
-        self.important = self._mark_important(addresses)
+        def _get_important_cdeps(block):
+            rdf = self.dom.DF[block.name]
+            out = set()
+            for cdep in rdf:
+                b = self.cfg.names_to_blocks[cdep]
+                if len(b.code) and b.code[-1].is_control():
+                    if b.code[-1].label not in self.important:
+                        out.add(b.code[-1].label)
+
+            return out
+
+        self.dom = Dominators(self.cfg)
+        self.dom.reverse()
+        self.dom.compute_dominators()
+        self.dom.compute_idom()
+        self.dom.compute_dominance_frontiers()
+
+        # TODO: unconditional?
+        
+        self.important = set(addresses)
+        change = True
+        while change:
+            for b in self.cfg.blocks:
+                for c in b.code:
+                    if c.label in self.important:
+                        addresses |= _get_important_cdeps(b)
+                        break
+
+            change = len(addresses) == 0
+            self.important |= self._mark_important(addresses)
+            addresses = set()
 
 def main():
     from gpucodeanalyzer.generic_cfg import CFG
+    from gpucodeanalyzer.isa.loader import get_dispatcher
     import argparse
 
     p = argparse.ArgumentParser(description="Classify instructions generically")
