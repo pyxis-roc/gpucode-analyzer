@@ -24,6 +24,34 @@ class Dominators(DFA):
     def compute_dominators(self):
         self.forward()
 
+    def compute_idom(self):
+        self.IDOM = {}
+        for b in self.cfg.blocks:
+            bdom = self.DOM(b)
+            max_ob = 0
+            max_b = None
+
+            for o in bdom:
+                if o == b.name: continue
+                ob = self.DOM(self.cfg.names_to_blocks[o])
+                if len(ob) > max_ob:
+                    max_ob = len(ob)
+                    max_b = o
+
+            self.IDOM[b.name] = max_b
+
+    def compute_dominance_frontiers(self):
+        self.DF = dict([(b.name, set()) for b in self.cfg.blocks])
+
+        for b in self.cfg.blocks:
+            is_join = len(b.predecessors) > 1
+            if not is_join: continue
+
+            for p in b.predecessors:
+                while p != self.IDOM[b.name]:
+                    self.DF[p].add(b.name)
+                    p = self.IDOM[p]
+
     def DOM(self, block, as_targets = False):
         dom = self.OUT[block.name]
         if as_targets:
@@ -45,12 +73,18 @@ def main():
 
     cfg = CFG(code)
     cfg.build()
-
+    cfg.dump_dot(open('test.dot', 'w'))
     dom = Dominators(cfg)
     dom.compute_dominators()
     for b in cfg.blocks:
         print(b.name, dom.DOM(b))
         print(b.target(), dom.DOM(b, as_targets=True))
+
+    dom.compute_idom()
+    dom.compute_dominance_frontiers()
+    for d, df in dom.DF.items():
+        print(dom.cfg.names_to_blocks[d].target(), [dom.cfg.names_to_blocks[dff].target() for dff in df])
+
 
 if __name__ == "__main__":
     main()
