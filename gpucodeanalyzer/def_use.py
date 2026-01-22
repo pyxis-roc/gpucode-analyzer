@@ -38,6 +38,7 @@ class DefUseAnalysis:
                 # first instruction in block, look at predecessors of block
                 out = set()
                 for p in b.predecessors.values():
+                    if not len(p.code): continue
                     out = out.union(rd[p.code[-1].label])
                 return out
             else:

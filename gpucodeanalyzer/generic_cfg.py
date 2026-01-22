@@ -81,15 +81,17 @@ class BasicBlock:
             return self._target
         elif len(self.code) > 0:
             return self.code[0].label
+        elif self.name in ("_start", "_exit"):
+            return self.name
         else:
             raise ValueError
 
 class CFG:
     def __init__(self, codefile):
         self.codefile = codefile
-        self.blocks = []
-        self.labels_to_blocks = {'_start': BasicBlock('start', []),
-                                 '_exit': BasicBlock('exit', [])}
+        self.blocks = [BasicBlock('_start', []), BasicBlock('_exit', [])]
+        self.labels_to_blocks = {'_start': self.blocks[0],
+                                 '_exit': self.blocks[1]}
         self.names_to_blocks = {'_start': self.labels_to_blocks['_start'],
                                 '_exit': self.labels_to_blocks['_exit'],
                                 }
@@ -102,8 +104,9 @@ class CFG:
             self.names_to_blocks[bb.name] = bb
             self.labels_to_blocks[bb.code[0].label] = bb
 
-            if last_bb and len(last_bb.code):
-                if last_bb.code[-1].is_control():
+            if last_bb:
+                if len(last_bb.code) and last_bb.code[-1].is_control():
+                    # true targets patched up later by other code
                     if last_bb.code[-1].is_conditional():
                         last_bb.add_successor('false', bb)
                 else:
@@ -145,6 +148,7 @@ class CFG:
         # fix up branch targets to bb; could be avoided
         for bb in self.blocks:
             #print(bb)
+            if len(bb.code) == 0: continue
             last_insn = bb.code[-1]
             if last_insn.is_control():
                 target = last_insn.target()
@@ -189,7 +193,7 @@ class CFG:
         l2b = {}
         l2b['_start'] = self.labels_to_blocks['_start'].copy()
         l2b['_exit'] = self.labels_to_blocks['_exit'].copy()
-        l2b.update(dict((b.code[0].label, b) for b in x.blocks))
+        l2b.update(dict((b.code[0].label, b) for b in x.blocks if len(b.code)))
 
         # note, doesn't deep copy instructions
         for l in self.labels_to_blocks:

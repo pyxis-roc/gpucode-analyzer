@@ -85,6 +85,7 @@ class SASS2C:
         for b in self.cfg.blocks:
             try:
                 t = b.target()
+                if t in ('_start', '_exit'): continue
                 cv = f"{self.func_name}_bbcount_{t}"
                 self.output.write(f"    uint64_t {cv} = 0;\n")
                 self.counters.append(cv)
@@ -112,6 +113,7 @@ class SASS2C:
     def output_block_order(self):
         order = [('_start', -1)]
         for b in self.cfg.blocks:
+            if b.name in ('_start', '_exit'): continue
             order.append((b.target(), int(b.target(), 16)))
 
         order.sort(key=lambda k: k[1])

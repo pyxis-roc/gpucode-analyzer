@@ -28,6 +28,7 @@ class Skeletonizer:
         important = set()
 
         for b in self.cfg.blocks:
+            if len(b.code) == 0: continue
             last_insn = b.code[-1]
             if last_insn.is_control():
                 if last_insn.label not in important:
