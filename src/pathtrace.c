@@ -8,11 +8,11 @@
 
 #define DEFAULT_PATH_SIZE 32
 
-void dump_traces(struct path_traces *pt) {
+void path_trace_dump(struct path_traces *pt) {
   for (uint64_t i = 0; i < pt->ntraces; i++) {
     printf("trace %lu id %lu\n", i, pt->trace[i].trace_id);
     for (uint64_t j = 0; j < pt->trace[i].nentries; j++) {
-      printf("\t %lu %lu %lu\n", j,
+      printf("\t %lu %lx %lu\n", j,
              pt->trace[i].path[j].branch_id,
 	     pt->trace[i].path[j].count);
     }
@@ -29,11 +29,13 @@ int path_trace_add_entry(struct trace *trace,
     trace->path[trace->nentries - 1].count += count;
   } else {
     if (trace->nentries == trace->nsize) {
-      void *p = realloc(trace->path, trace->nsize * 2);
+      void *p = realloc(trace->path, sizeof(struct trace_entry) * trace->nsize * 2);
       if (p == NULL) {
         // better to lose the trace on failure to expand?
 	return 0;
       }
+      //printf("resizing to %lu %p\n", trace->nsize, trace->path);
+      trace->nsize *= 2;
       trace->path = p;
     }
 
@@ -98,6 +100,6 @@ int main(void) {
   path_trace_add_entry_fast(&pt->trace[0], 2, 5);
   path_trace_add_entry_fast(&pt->trace[0], 1, 5);
 
-  dump_traces(pt);
+  path_trace_dump(pt);
 }
 #endif

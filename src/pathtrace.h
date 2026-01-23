@@ -18,7 +18,7 @@ struct path_traces {
   struct trace *trace;
 };
 
-void dump_traces(struct path_traces *pt);
+void path_trace_dump(struct path_traces *pt);
 int path_trace_add_entry(struct trace *trace,
                          uint64_t branch_id,
 			 uint64_t count);

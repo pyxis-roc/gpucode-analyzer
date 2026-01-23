@@ -33,12 +33,17 @@ class SASS2C:
         self.output = output
         self.causes = {}
         self.counters = []
+        self.config = set(['gen_path_info'])
         self.xlatinfo = XlatInfo(xlatinfo)
 
     def init_module(self):
         self.output.write("#include <stdint.h>\n")
         self.output.write("#include <stdbool.h>\n")
         self.output.write("#include <stdio.h>\n")
+
+        if ('gen_path_info' in self.config):
+            self.output.write("#include <pathtrace.h>\n")
+
         self.output.write('#include "sass_insns.h"\n\n')
         self.output.write('#include "lop3_lut.h"\n\n')
 
@@ -97,7 +102,12 @@ class SASS2C:
         self.func_name = func_name
         self.output.write("// cfg\n")
 
-        args = ['const sass_vec3 GRID_DIM', 'const sass_vec3 CTA_DIM', 'const sass_vec3 SR_CTAID', 'const sass_vec3 SR_TID']
+        if ('gen_path_info' in self.config):
+            args = ['struct trace *trace']
+        else:
+            args = []
+
+        args.extend(['const sass_vec3 GRID_DIM', 'const sass_vec3 CTA_DIM', 'const sass_vec3 SR_CTAID', 'const sass_vec3 SR_TID'])
         args.extend(self.xlatinfo.get_args(func_name))
 
         # ugly, but should work, needs to be in a separate globals block
@@ -292,6 +302,9 @@ class SASS2C:
         if not hasattr(block, '_target'): return
 
         self.output.write(f'label_{block.target()}:\n')
+        if ('gen_path_info' in self.config):
+            self.output.write(f'    path_trace_add_entry_fast(trace, 0x{block.target()}, 1);\n')
+
         self.output.write(f'    {self.func_name}_bbcount_{block.target()}++;\n')
         self.output.write(f'    if(debug_flow) printf("{block.target()}\\n");\n')
 
@@ -357,6 +370,11 @@ class SASS2C:
         self.output.write(f"    sass_vec3 SR_CTAID;\n")
         self.output.write(f"    sass_vec3 SR_TID;\n")
 
+        if ('gen_path_info' in self.config):
+            self.output.write(f"    struct path_traces *pt = path_trace_create(GRID_DIM.X*GRID_DIM.Y*GRID_DIM.Z*CTA_DIM.X*CTA_DIM.Y*CTA_DIM.Z); \n")
+            self.output.write(f'    if(!pt) fprintf(stderr, "ERROR: Failed to create path trace.\\n");\n')
+            self.output.write(f'    uint64_t pt_trace_id = 0;\n')
+
         self.output.write("    for(SR_CTAID.Z=0; SR_CTAID.Z<GRID_DIM.Z; SR_CTAID.Z++) {\n")
         self.output.write("    for(SR_CTAID.Y=0; SR_CTAID.Y<GRID_DIM.Y; SR_CTAID.Y++) {\n")
         self.output.write("    for(SR_CTAID.X=0; SR_CTAID.X<GRID_DIM.X; SR_CTAID.X++) {\n")
@@ -365,8 +383,13 @@ class SASS2C:
         self.output.write("      for(SR_TID.Y=0; SR_TID.Y<CTA_DIM.Y; SR_TID.Y++) {\n")
         self.output.write("      for(SR_TID.X=0; SR_TID.X<CTA_DIM.X; SR_TID.X++) {\n")
 
-        call_args = ['GRID_DIM', 'CTA_DIM', 'SR_CTAID', 'SR_TID']
+        if ('gen_path_info' in self.config):
+            self.output.write(f"        path_trace_init(pt, pt_trace_id, pt_trace_id);\n")
+            call_args = ['pt == NULL ? NULL : &pt->trace[pt_trace_id++]']
+        else:
+            call_args = []
 
+        call_args.extend(['GRID_DIM', 'CTA_DIM', 'SR_CTAID', 'SR_TID'])
         # TODO: get arg name more robustly
         call_args.extend([x.split(" ")[-1] for x in self.xlatinfo.get_args(self.func_name)])
 
@@ -375,7 +398,11 @@ class SASS2C:
         self.output.write(f"       {self.func_name}_thread({call_args});\n")
 
         self.output.write("     }}}}}}\n")
-        self.output.write(f"{self.func_name}_counters();\n")
+        self.output.write(f"    {self.func_name}_counters();\n")
+
+        if ('gen_path_info' in self.config):
+            self.output.write(f"        path_trace_dump(pt);\n")
+
         self.output.write("}\n")
 
         self.generate_caller()
