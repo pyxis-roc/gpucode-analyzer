@@ -7,4 +7,5 @@ edit-distance
 *.dot
 *.pyc
 *.egg-info
+*.pathtrace
 

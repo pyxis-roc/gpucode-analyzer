@@ -24,6 +24,7 @@ int path_trace_add_entry(struct trace *trace,
 			 uint64_t count);
 void path_trace_init(struct path_traces *pt, uint64_t trace, uint64_t trace_id);
 struct path_traces *path_trace_create(uint64_t ntraces);
+int path_trace_save(FILE *f, struct path_traces *pt);
 
 static inline int path_trace_add_entry_fast(struct trace *trace,
                          uint64_t branch_id,

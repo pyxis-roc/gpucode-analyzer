@@ -19,6 +19,31 @@ void path_trace_dump(struct path_traces *pt) {
   }
 }
 
+int path_trace_save(FILE *f, struct path_traces *pt) {
+  uint64_t magic = 0x0000AC75;
+
+  if(fwrite(&magic, sizeof(magic), 1, f) != 1) return 0;
+  if(fwrite(&pt->ntraces, sizeof(pt->ntraces), 1, f) != 1) return 0;
+
+  for (uint64_t i = 0; i < pt->ntraces; i++) {
+    if (fwrite(&pt->trace[i].trace_id, sizeof(pt->trace[i].trace_id), 1, f) !=
+        1)
+      return 0;
+
+    if (fwrite(&pt->trace[i].nentries, sizeof(pt->trace[i].nentries), 1, f) !=
+        1)
+      return 0;
+  }
+
+  for (uint64_t i = 0; i < pt->ntraces; i++) {
+    if (fwrite(&pt->trace[i].path, sizeof(pt->trace[i].path[0]),
+               pt->trace[i].nentries, f) != pt->trace[i].nentries)
+      return 0;
+  }
+
+  return 1;
+}
+
 int path_trace_add_entry(struct trace *trace,
                          uint64_t branch_id,
 			 uint64_t count) {
@@ -101,5 +126,8 @@ int main(void) {
   path_trace_add_entry_fast(&pt->trace[0], 1, 5);
 
   path_trace_dump(pt);
+  if (!path_trace_save(fopen("test.pathtrace", "wb"), pt)) {
+    fprintf(stderr, "ERROR: failed to write trace to file\n");
+  }
 }
 #endif
