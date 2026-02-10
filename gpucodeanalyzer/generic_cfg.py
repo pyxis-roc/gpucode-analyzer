@@ -191,10 +191,18 @@ class CFG:
         for b in self.blocks:
             print(b)
 
-    def dump_dot(self, output, code=True, xinsn=lambda i: i.insn):
+    def dump_dot(self, output, code=True, xinsn=lambda i: i.insn, count=False):
         print("digraph {", file=output)
         for b in self.blocks:
-            bbcode = '"' + b.target() + "\\n" + "\\n".join([str(xinsn(s)) for s in b.code]) + '"'
+            if count:
+                count = str(len(b.code)) + "\\n"
+            else:
+                count = ""
+
+            bbcode = f'"{count}' + b.target() + "\\n" + "\\n".join([str(xinsn(s)) for s in b.code]) + '"'
+            if not code:
+                bbcode = f'"{count}"'
+
             print(b.name + f" [label={bbcode},shape=rect];", file=output)
             print("\n".join(f"{b.name} -> {succ.name} [label=\"{lbl if lbl != 'next' else ''}\"];" for lbl, succ in b.successors.items()), file=output)
         print("}", file=output)
