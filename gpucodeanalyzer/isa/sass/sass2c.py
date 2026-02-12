@@ -16,6 +16,11 @@ class XlatInfo:
     def get_args(self, fn):
         return self.data[fn].get("args", [])
 
+    def get_arg_names(self, fn):
+        #TODO: more robust
+        argnames = [x.split(" ")[-1] for x in self.get_args(fn)]
+        return argnames
+
     def get_block_dim(self, fn):
         return self.data[fn].get('block_dim', None)
 
@@ -349,7 +354,14 @@ class SASS2C:
 
         self.output.write(f"  sass_vec3 grid_dim = {{{gdim}}}, block_dim = {{{bdim}}};\n")
 
-        arg_values = ", ".join(self.xlatinfo.get_arg_values(self.func_name))
+        arg_values = self.xlatinfo.get_arg_values(self.func_name)
+        arg_names = self.xlatinfo.get_arg_names(self.func_name)
+
+        if len(arg_values) > 0:
+            # TODO: allow user to select which arguments
+            arg_values = arg_values[0]
+
+        arg_values = ", ".join([str(arg_values[a]) for a in arg_names])
         if arg_values != "": arg_values = ", " + arg_values
 
         self.output.write(f"  {self.func_name}(grid_dim, block_dim{arg_values});\n")
@@ -395,8 +407,7 @@ class SASS2C:
             call_args = []
 
         call_args.extend(['GRID_DIM', 'CTA_DIM', 'SR_CTAID', 'SR_TID'])
-        # TODO: get arg name more robustly
-        call_args.extend([x.split(" ")[-1] for x in self.xlatinfo.get_args(self.func_name)])
+        call_args.extend(self.xlatinfo.get_arg_names(self.func_name))
 
         call_args = ", ".join(call_args)
 
