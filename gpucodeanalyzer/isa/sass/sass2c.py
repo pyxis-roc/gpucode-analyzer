@@ -227,6 +227,10 @@ class SASS2C:
             opcode = "IMNMX_U32"
         elif i.opcode == "ULDC":
             opcode = "ULDC"
+        elif i.opcode == "ULEA.HI":
+            opcode = "ULEA_HI"
+        elif i.opcode == "LEA.HI":
+            opcode = "LEA_HI"
         elif i.opcode == "SEL" or i.opcode == "USEL":
             opcode = i.opcode
         elif i.opcode == "P2R":

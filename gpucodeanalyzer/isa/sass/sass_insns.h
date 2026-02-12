@@ -18,6 +18,8 @@
 #define BRA(label) goto label
 #define CALL_REL_NOINC(label) goto label
 
+#define ISETP_GE_OR_D0(dst0, dst1, src1, src2, src3) dst0 = ((int32_t) src1 >= (int32_t) src2) || src3
+
 #define ISETP_GT_AND_D0(dst0, dst1, src1, src2, src3) dst0 = ((int32_t) src1 > (int32_t) src2) && src3
 #define ISETP_GT_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
 
@@ -69,6 +71,8 @@
 #define CS2R(dst, src) dst = src
 #define IMNMX_U32(dst, src1, src2, mnpred) if(mnpred) { dst = src1 < src2 ? src1 : src2; } else { dst = src1 > src2 ? src1 : src2; } // TODO
 #define ULDC(dst, src) dst = src
+#define ULDC_64(dst1, dst2, src) dst2 = (src & 0xffffffffL); dst1 = (src >> 32)
+
 
 #define concat_u32(hi, lo) ((((uint64_t) hi) << 32) | (uint64_t) lo)
 
@@ -86,6 +90,8 @@
 #define USEL(dst, src1, src2, pred) SEL(dst, src1, src2, pred)
 
 // TODO: is hi taken after the shift or after the add?
-#define LEA_HI(dst, pred, alo, b, ahi, imm_shift) dst = ((concat_u32(ahi, alo) << imm_shift) + b) >> 32
+#define LEA_HI(dst, alo, b, ahi, imm_shift) dst = ((concat_u32(ahi, alo) << imm_shift) + b) >> 32
+
+#define ULEA_HI(dst, alo, b, ahi, imm_shift) LEA_HI(dst, alo, b, ahi, imm_shift)
 
 #define P2R(dst, ign_PR, ign_RZ, pred_set) dst = pred_set
