@@ -137,6 +137,7 @@ class SASS2C:
 
     def xlat_insn(self, i, fn):
         def process_c_lookup(cl):
+            if cl[0] == '-': cl = cl[1:]
             return self.xlatinfo.map_constant(fn, cl)
             #if cl == "c[0x0][0x0]":
             #    return "GRID_DIM.X" # webgpu only?
@@ -168,9 +169,9 @@ class SASS2C:
                     if ndx == 0 and expand_dst_adj:
                         o.extend([aa.operand(reuse=False) for aa in a.adjacent(expand_dst_adj)])
                 elif isinstance(a, str):
-                    if a.startswith('-') or a.startswith('0x'):
+                    if (a.startswith('-') and not a.startswith('-c[')) or a.startswith('0x'):
                         o.append(f"(sass_reg) {a}")
-                    elif a.startswith('c['):
+                    elif a.startswith('c[') or a.startswith('-c['):
                         c = process_c_lookup(a)
                         if c:
                             o.append(c)
