@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+
+import argparse
+import re
+try:
+    import compression.bz2 as bz2
+except ImportError:
+    import bz2
+
+INSN_START = re.compile(r"^CTA (?P<ctax>\d+),(?P<ctay>\d+),(?P<ctaz>\d+) - warp (?P<warp>\d+) - (?P<op_idx>\d+) - (?P<insn>.*) ;:$")
+KERNEL_START = re.compile(r"Kernel (?P<name>.*) - grid size (?P<gridx>\d+),(?P<gridy>\d+),(?P<gridz>\d+) - block size (?P<blockx>\d+),(?P<blocky>\d+),(?P<blockz>\d+) - nregs (?P<nregs>\d+) - shmem (?P<shmem>\d+) - cuda stream id (?P<stream>\d+)$")
+VALUES_START = re.compile(r"\* (R|C|U)")
+UREG_VALUE = re.compile(r"UReg(?P<reg>\d+): (?P<value>0x.+)$")
+CONST_VALUE = re.compile(r"C(?P<size>\d+): (?P<value>0x.+)$")
+REG_VALUE = re.compile(r"Reg(?P<reg>\d+)_T(?P<thread>\d+): (?P<value>0x[a-f0-9]+) ")
+
+class KernelData:
+    def __init__(self, kernel_match):
+        #self.kernel_match = kernel_match
+        self.kernel = kernel_match.group('name')
+        self.grid = (kernel_match.group('gridx'), kernel_match.group('gridy'), kernel_match.group('gridz'))
+        self.blockdim = (kernel_match.group('blockx'), kernel_match.group('blocky'), kernel_match.group('blockz'))
+        self.nregs = kernel_match.group('nregs')
+        self.shmem = kernel_match.group('shmem')
+        self.stream = kernel_match.group('stream')
+
+    def __str__(self):
+        return f"{self.kernel} - {self.grid} - {self.blockdim}"
+
+    __repr__ = __str__
+
+class InsnData:
+    def __init__(self, insn_match):
+        self.cta = (insn_match.group('ctax'), insn_match.group('ctay'), insn_match.group('ctaz'))
+        self.warp_id = int(insn_match.group('warp'))
+        self.op_idx = int(insn_match.group('op_idx'))
+        self.insn = insn_match.group('insn')
+        self.regs = []
+        self.uregs = []
+        self.constant = None
+
+    def add_regs(self, regs):
+        self.regs.append(regs)
+
+    def add_ureg(self, ureg):
+        self.uregs.append(ureg)
+
+    def set_constant(self, sz, constant):
+        self.constant_sz = sz
+        self.constant = constant
+
+    def __str__(self):
+        return self.insn
+
+    __repr__ = __str__
+
+class RawTrace:
+    def __init__(self, trace):
+        self.trace = trace
+
+    def _parse_regs(self, l):
+        out = []
+        for m in  REG_VALUE.finditer(l):
+            out.append((m.group('reg'), m.group('thread'), m.group('value')))
+
+        return out
+
+    def parse_raw(self):
+        if self.trace.endswith('bz2'):
+            f = bz2.open(self.trace, mode="rt", encoding='utf-8')
+        else:
+            f = open(self.trace, "r")
+
+        insn_data = None
+
+        for l in f:
+            m = INSN_START.match(l)
+            if m:
+                if insn_data is not None:
+                    yield insn_data
+
+                insn_data = InsnData(m)
+            else:
+                m = KERNEL_START.match(l)
+                if m:
+                    kernel = KernelData(m)
+                    yield kernel
+                else:
+                    m = VALUES_START.match(l)
+                    if m:
+                        ty = m.group(1)
+                        if ty == 'U':
+                            val = UREG_VALUE.match(l[2:])
+                            assert insn_data is not None
+                            insn_data.add_ureg((val.group('reg'), val.group('value')))
+                        elif ty == 'C':
+                            val = CONST_VALUE.match(l[2:])
+                            assert insn_data is not None
+                            insn_data.set_constant(val.group('size'), val.group('value'))
+                        elif ty == 'R':
+                            assert insn_data is not None
+                            val = self._parse_regs(l[2:])
+                            insn_data.add_regs(val)
+                        else:
+                            raise NotImplementedError
+                    else:
+                        if l.strip():
+                            print("ERROR: Not matched", l)
+
+        if insn_data:
+            yield insn_data
+
+
+
+def main():
+    p = argparse.ArgumentParser(description="Parse a trace produced by NVBit tool record_reg_vals_thread")
+    p.add_argument("tracefile")
+    args = p.parse_args()
+
+    t = RawTrace(args.tracefile)
+    for l in t.parse_raw():
+        print(l)
+
+if __name__ == "__main__":
+    main()
+
+
