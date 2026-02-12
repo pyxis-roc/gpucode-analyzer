@@ -15,7 +15,7 @@ CONST_VALUE = re.compile(r"C(?P<size>\d+): (?P<value>0x.+)$")
 REG_VALUE = re.compile(r"Reg(?P<reg>\d+)_T(?P<thread>\d+): (?P<value>0x[a-f0-9]+) ")
 
 class KernelData:
-    def __init__(self, kernel_match):
+    def __init__(self, kernel_match, kernel_idx):
         #self.kernel_match = kernel_match
         self.kernel = kernel_match.group('name')
         self.grid = (kernel_match.group('gridx'), kernel_match.group('gridy'), kernel_match.group('gridz'))
@@ -23,14 +23,15 @@ class KernelData:
         self.nregs = kernel_match.group('nregs')
         self.shmem = kernel_match.group('shmem')
         self.stream = kernel_match.group('stream')
+        self.kernel_idx = kernel_idx
 
     def __str__(self):
-        return f"{self.kernel} - {self.grid} - {self.blockdim}"
+        return f"Kernel #{self.kernel_idx} {self.kernel} - {self.grid} - {self.blockdim}"
 
     __repr__ = __str__
 
 class InsnData:
-    def __init__(self, insn_match):
+    def __init__(self, insn_match, kernel_idx = None):
         self.cta = (insn_match.group('ctax'), insn_match.group('ctay'), insn_match.group('ctaz'))
         self.warp_id = int(insn_match.group('warp'))
         self.op_idx = int(insn_match.group('op_idx'))
@@ -38,6 +39,7 @@ class InsnData:
         self.regs = []
         self.uregs = []
         self.constant = None
+        self.kernel_idx = kernel_idx
 
     def add_regs(self, regs):
         self.regs.append(regs)
@@ -50,7 +52,7 @@ class InsnData:
         self.constant = constant
 
     def __str__(self):
-        return self.insn
+        return f"{self.op_idx} {self.insn}"
 
     __repr__ = __str__
 
@@ -72,6 +74,7 @@ class RawTrace:
             f = open(self.trace, "r")
 
         insn_data = None
+        kno = 0
 
         for l in f:
             m = INSN_START.match(l)
@@ -83,7 +86,8 @@ class RawTrace:
             else:
                 m = KERNEL_START.match(l)
                 if m:
-                    kernel = KernelData(m)
+                    kernel = KernelData(m, kno)
+                    kno += 1
                     yield kernel
                 else:
                     m = VALUES_START.match(l)
@@ -110,7 +114,36 @@ class RawTrace:
         if insn_data:
             yield insn_data
 
+    def parse_kernel_order(self):
+        kernels = []
+        delayed = []
 
+        kernel_ndx = -1
+
+        for l in self.parse_raw():
+            if isinstance(l, InsnData):
+                if l.cta == ('0', '0', '0') and l.warp_id == 0 and l.op_idx == 0:
+                    assert len(delayed) == 0
+                    kernel_ndx += 1
+                    if kernel_ndx < len(kernels):
+                        yield kernels[kernel_ndx]
+
+                if kernel_ndx < len(kernels):
+                    yield l
+                else:
+                    delayed.append(l)
+            elif isinstance(l, KernelData):
+                kernels.append(l)
+                if len(delayed):
+                    yield l
+                    for insn in delayed:
+                        yield insn
+
+                    delayed = []
+            else:
+                raise NotImplemented(l)
+
+        assert len(delayed) == 0
 
 def main():
     p = argparse.ArgumentParser(description="Parse a trace produced by NVBit tool record_reg_vals_thread")
@@ -118,7 +151,7 @@ def main():
     args = p.parse_args()
 
     t = RawTrace(args.tracefile)
-    for l in t.parse_raw():
+    for l in t.parse_kernel_order():
         print(l)
 
 if __name__ == "__main__":
