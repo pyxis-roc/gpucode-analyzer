@@ -65,6 +65,7 @@ class InsnData:
 class RawTrace:
     def __init__(self, trace):
         self.trace = trace
+        self._anno_cache = {}
 
     def _parse_regs(self, l):
         out = []
@@ -168,35 +169,50 @@ class RawTrace:
         return i
 
     def annotate_insn_regs(self, insn_data):
-        insn = self.make_insn(insn_data)
+        if insn_data.insn in self._anno_cache:
+            out = self._anno_cache[insn_data.insn]
+        else:
+            insn = self.make_insn(insn_data)
 
-        regs_written = len([r for r in insn.writes() if isinstance(r, SASSRegister) and r.is_regular()])
+            regs_written = len([r for r in insn.writes() if isinstance(r, SASSRegister) and r.is_regular()])
 
-        reg_ptr = 0
-        ureg_ptr = 0
-        for o in insn.operands():
-            if isinstance(o.operand, SASSRegister):
-                r = o.operand
-                if r.is_regular():
-                    if r.is_uniform():
-                        if o.access() == 'W' and regs_written < insn_data.width:
-                           for r in o.operand.adjacent(insn_data.width):
-                               print(o.access(), r.n, insn_data.uregs[ureg_ptr])
-                               ureg_ptr += 1
+            out = []
+            reg_ptr = 0
+            ureg_ptr = 0
+            for o in insn.operands():
+                if isinstance(o.operand, SASSRegister):
+                    r = o.operand
+                    if r.is_regular():
+                        if r.is_uniform():
+                            if o.access() == 'W' and regs_written < insn_data.width:
+                               for r in o.operand.adjacent(insn_data.width):
+                                   out.append((o.access(), r.n,
+                                               (lambda idx: lambda x: x.uregs[idx])(ureg_ptr)
+                                               ))
+                                   ureg_ptr += 1
+                            else:
+                                out.append((o.access(), r.n,
+                                            (lambda idx: lambda x: x.uregs[idx])(ureg_ptr)
+                                            ))
+                                ureg_ptr += 1
                         else:
-                            print(o.access(), o.operand.n, insn_data.uregs[ureg_ptr])
-                            ureg_ptr += 1
-                    else:
-                        if o.access() == 'W' and regs_written < insn_data.width:
-                           for r in o.operand.adjacent(insn_data.width):
-                               print(o.access(), r.n, insn_data.regs[reg_ptr])
-                               reg_ptr += 1
-                        else:
-                            print(o.access(), o.operand.n, insn_data.regs[reg_ptr])
-                            reg_ptr += 1
+                            if o.access() == 'W' and regs_written < insn_data.width:
+                               for r in o.operand.adjacent(insn_data.width):
+                                   out.append((o.access(), r.n,
+                                               (lambda idx: lambda x: x.regs[idx])(reg_ptr)
+                                               ))
+                                   reg_ptr += 1
+                            else:
+                                out.append((o.access(), r.n,
+                                            (lambda idx: lambda x: x.regs[idx])(reg_ptr)))
+                                reg_ptr += 1
 
-        assert reg_ptr == len(insn_data.regs)
-        assert ureg_ptr == len(insn_data.uregs)
+            assert reg_ptr == len(insn_data.regs)
+            assert ureg_ptr == len(insn_data.uregs)
+            self._anno_cache[insn_data.insn] = out
+
+        for o in out:
+            yield (o[0], o[1], o[2](insn_data))
 
 def main():
     p = argparse.ArgumentParser(description="Parse a trace produced by NVBit tool record_reg_vals_thread")
@@ -208,7 +224,8 @@ def main():
         print(l)
         if isinstance(l, InsnData):
             #print(t.make_insn(l))
-            t.annotate_insn_regs(l)
+            for access, n, vals in t.annotate_insn_regs(l):
+                print(access, n, vals)
 
 if __name__ == "__main__":
     main()
