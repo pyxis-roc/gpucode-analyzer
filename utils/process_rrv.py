@@ -206,6 +206,8 @@ class RawTrace:
                                                (lambda idx: lambda x: x.regs[idx])(reg_ptr)
                                                ))
                                    reg_ptr += 1
+                elif isinstance(o.operand, str) and (o.operand.startswith('c') or o.operand.startswith('-c')):
+                    out.append((o.access(), o.operand, lambda x: x.constant))
 
 
             assert reg_ptr == len(insn_data.regs)
