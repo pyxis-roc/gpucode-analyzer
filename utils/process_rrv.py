@@ -184,28 +184,29 @@ class RawTrace:
                     r = o.operand
                     if r.is_regular():
                         if r.is_uniform():
+                            out.append((o.access(), r.n,
+                                        (lambda idx: lambda x: x.uregs[idx])(ureg_ptr)
+                                        ))
+                            ureg_ptr += 1
+
                             if o.access() == 'W' and regs_written < insn_data.width:
-                               for r in o.operand.adjacent(insn_data.width):
+                               for r in o.operand.adjacent(insn_data.width-1):
                                    out.append((o.access(), r.n,
                                                (lambda idx: lambda x: x.uregs[idx])(ureg_ptr)
                                                ))
                                    ureg_ptr += 1
-                            else:
-                                out.append((o.access(), r.n,
-                                            (lambda idx: lambda x: x.uregs[idx])(ureg_ptr)
-                                            ))
-                                ureg_ptr += 1
                         else:
+                            out.append((o.access(), r.n,
+                                        (lambda idx: lambda x: x.regs[idx])(reg_ptr)))
+                            reg_ptr += 1
+
                             if o.access() == 'W' and regs_written < insn_data.width:
-                               for r in o.operand.adjacent(insn_data.width):
+                               for r in o.operand.adjacent(insn_data.width-1):
                                    out.append((o.access(), r.n,
                                                (lambda idx: lambda x: x.regs[idx])(reg_ptr)
                                                ))
                                    reg_ptr += 1
-                            else:
-                                out.append((o.access(), r.n,
-                                            (lambda idx: lambda x: x.regs[idx])(reg_ptr)))
-                                reg_ptr += 1
+
 
             assert reg_ptr == len(insn_data.regs)
             assert ureg_ptr == len(insn_data.uregs)
@@ -214,18 +215,38 @@ class RawTrace:
         for o in out:
             yield (o[0], o[1], o[2](insn_data))
 
+    def parse_io(self):
+        state = {'RZ': 0}
+        for l in self.parse_kernel_order():
+            yield l
+            if isinstance(l, KernelData):
+                state = {'RZ': 0, 'URZ': 0}
+
+            if isinstance(l, InsnData):
+                writes = []
+                for access, n, vals in self.annotate_insn_regs(l):
+                    if access == 'W':
+                        writes.append((access, n, vals))
+                        continue
+                    else:
+                        vals = state.get(n, vals)
+
+                    yield (access, n, vals)
+
+                for access, n, vals in writes:
+                    yield (access, n, vals)
+                    if n != 'RZ' or n != 'URZ':
+                        state[n] = vals
+
+
 def main():
     p = argparse.ArgumentParser(description="Parse a trace produced by NVBit tool record_reg_vals_thread")
     p.add_argument("tracefile")
     args = p.parse_args()
 
     t = RawTrace(args.tracefile)
-    for l in t.parse_kernel_order():
+    for l in t.parse_io():
         print(l)
-        if isinstance(l, InsnData):
-            #print(t.make_insn(l))
-            for access, n, vals in t.annotate_insn_regs(l):
-                print(access, n, vals)
 
 if __name__ == "__main__":
     main()

@@ -88,7 +88,8 @@ class SASSOperand(Operand):
 
 class SASSInstruction(Instruction):
     WRITE_COUNT = {'BSYNC': 0,
-                   ('IADD3', 5): 2}
+                   ('IADD3', 5): 2,
+                   ('LOP3.LUT', 7): 2}
 
     MULTI_WRITER = {'LDG.E.128.STRONG.GPU': {0: 4},
                     'LDG.E.128.CONSTANT': {0: 4},
@@ -177,11 +178,10 @@ class SASSInstruction(Instruction):
         mw = self.MULTI_WRITER[self.opcode] if self.opcode in self.MULTI_WRITER else {}
 
         for k, a in enumerate(writes):
+            yield SASSOperand(a, write = True)
             if k in mw:
-                for r in a.adjacent(mw[k]):
-                    yield SASSOperand(a, write = True, implicit = True)
-            else:
-                yield SASSOperand(a, write = True)
+                for r in a.adjacent(mw[k] - 1):
+                    yield SASSOperand(r, write = True, implicit = True)
 
         reads = self.args[write_args:]
         for a in reads:
