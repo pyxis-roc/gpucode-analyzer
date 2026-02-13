@@ -25,6 +25,32 @@ class ControlInsn(Instruction):
     def is_conditional(self):
         raise NotImplementedError
 
+class Operand:
+    def __init__(self, operand, read = False, write = False, implicit = False):
+        self.operand = operand
+        self.read = read
+        self.write = write
+        self.implicit = implicit # does not appear in the instruction
+
+    def is_read(self):
+        return self.read
+
+    def is_write(self):
+        return self.write
+
+    def access(self):
+        a = ""
+
+        if self.is_read():
+            a += "R"
+
+        if self.is_write():
+            a += "W"
+
+        return a
+
+    def is_implicit(self):
+        return self.implicit
 
 class Register:
     def __init__(self, n):

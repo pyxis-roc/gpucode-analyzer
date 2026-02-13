@@ -1,11 +1,11 @@
 import re
-from ...generic_cfg import Instruction, ControlInsn, Register, Memory
+from ...generic_cfg import Instruction, ControlInsn, Register, Memory, Operand
 
 # assemblies extracted from nvuc files are "bare" with no function name and have one function.
 # assemblies dumped from cuobjdump usually have function name information and are multiple functions.
 
 SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;(\s*/\* 0x([0-9a-f]+) \*/)?$")
-SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B1)?)|(UPT|PT|RZ|URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
+SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B1|\.H0_H0)?)|(UPT|PT|-?RZ|URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
 SASS_ADDR_RE = re.compile(r"\[(?P<reg1>R[0-9Z]+)(\.(?P<suff>U32|X16))?(\+(?P<reg2>UR[0-9Z]+)|(?P<imm>0x.+))?\]")
 
 CX_RE = re.compile(r"-?cx\[(?P<regbase>.+)\]\[(?P<offset>.+)\]")
@@ -25,6 +25,21 @@ class SASSRegister(Register):
     def is_constant(self):
         return self.n in CONSTANT_REGS
 
+    def is_uniform(self):
+        return self.n[0] == "U"
+
+    def is_predicate(self):
+        return self.n[0] == "P" or self.n.startswith("UP")
+
+    def is_barrier(self):
+        return self.n[0] == "B"
+
+    def is_regular(self):
+        return self.n[0] == "R" or self.n.startswith("UR")
+
+    def is_sr(self):
+        return self.n.startswith('SR')
+
     def operand(self, reuse = True):
         n = self.n
 
@@ -42,7 +57,9 @@ class SASSRegister(Register):
     def adjacent(self, adj = 1):
         regno = re.compile(r'(?P<prefix>[^0-9]+)(?P<num>\d+)$')
         m = regno.search(self.n)
-        assert m is not None
+        if self.n == "RZ" or self.n == "URZ":
+            return [self]*adj
+        assert m is not None, self.n
         pfx = m.group('prefix')
         r = int(m.group('num'))
 
@@ -66,6 +83,9 @@ class SASSAddress(Memory):
 
         return out
 
+class SASSOperand(Operand):
+    pass
+
 class SASSInstruction(Instruction):
     WRITE_COUNT = {'BSYNC': 0,
                    ('IADD3', 5): 2}
@@ -76,7 +96,9 @@ class SASSInstruction(Instruction):
                     'HMMA.16816.F32': {0: 4},
                     'IMAD.WIDE.U32': {0: 2},
                     'IMAD.WIDE': {0: 2},
-                    'LDSM.16.MT88.4': {0: 4}
+                    'LDSM.16.MT88.4': {0: 4},
+                    'LDS.128': {0: 4},
+                    'LDG.E.128': {0: 4},
                     }
 
     def __init__(self, pc, pred, opcode, args, insn):
@@ -111,6 +133,10 @@ class SASSInstruction(Instruction):
                     a = a[:-len(".B1")]
                     # unknown
 
+                if a.endswith(".H0_H0"):
+                    a = a[:-len(".H0_H0")]
+                    # TODO
+
                 r = SASSRegister(a, is_inverted = is_inverted,
                                  is_negated = is_negated,
                                  is_reuse = is_reuse)
@@ -144,6 +170,23 @@ class SASSInstruction(Instruction):
 
         return write_args
 
+    def operands(self):
+        write_args = self.write_count() # explicit
+        writes = self.args[:write_args]
+
+        mw = self.MULTI_WRITER[self.opcode] if self.opcode in self.MULTI_WRITER else {}
+
+        for k, a in enumerate(writes):
+            if k in mw:
+                for r in a.adjacent(mw[k]):
+                    yield SASSOperand(a, write = True, implicit = True)
+            else:
+                yield SASSOperand(a, write = True)
+
+        reads = self.args[write_args:]
+        for a in reads:
+            yield SASSOperand(a, read = True)
+
     def _decode_predset_imm(self, regset):
         rs = int(regset, 16)
         assert rs < 256, rs
@@ -151,7 +194,7 @@ class SASSInstruction(Instruction):
         out = []
         for i in range(8):
             if (rs & 1):
-                out.append(Register(f"P{i}"))
+                out.append(SASSRegister(f"P{i}"))
 
             rs >>= 1
             if rs == 0: break

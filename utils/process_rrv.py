@@ -7,12 +7,15 @@ try:
 except ImportError:
     import bz2
 
+from gpucodeanalyzer.isa.sass import SASSInstruction, SASSControlInsn, SASSFile, SASSRegister
+
 INSN_START = re.compile(r"^CTA (?P<ctax>\d+),(?P<ctay>\d+),(?P<ctaz>\d+) - warp (?P<warp>\d+) - (?P<op_idx>\d+) - (?P<insn>.*) ;:$")
 KERNEL_START = re.compile(r"Kernel (?P<name>.*) - grid size (?P<gridx>\d+),(?P<gridy>\d+),(?P<gridz>\d+) - block size (?P<blockx>\d+),(?P<blocky>\d+),(?P<blockz>\d+) - nregs (?P<nregs>\d+) - shmem (?P<shmem>\d+) - cuda stream id (?P<stream>\d+)$")
-VALUES_START = re.compile(r"\* (R|C|U)")
+VALUES_START = re.compile(r"\* (R|C|U|W)")
 UREG_VALUE = re.compile(r"UReg(?P<reg>\d+): (?P<value>0x.+)$")
 CONST_VALUE = re.compile(r"C(?P<size>\d+): (?P<value>0x.+)$")
 REG_VALUE = re.compile(r"Reg(?P<reg>\d+)_T(?P<thread>\d+): (?P<value>0x[a-f0-9]+) ")
+WIDTH_VALUE = re.compile(r"Width: (?P<value>\d+)$")
 
 class KernelData:
     def __init__(self, kernel_match, kernel_idx):
@@ -50,6 +53,9 @@ class InsnData:
     def set_constant(self, sz, constant):
         self.constant_sz = sz
         self.constant = constant
+
+    def set_width(self, width):
+        self.width = width
 
     def __str__(self):
         return f"{self.op_idx} {self.insn}"
@@ -105,6 +111,10 @@ class RawTrace:
                             assert insn_data is not None
                             val = self._parse_regs(l[2:])
                             insn_data.add_regs(val)
+                        elif ty == 'W':
+                            assert insn_data is not None
+                            val = WIDTH_VALUE.match(l[2:])
+                            insn_data.set_width(int(val.group('value')))
                         else:
                             raise NotImplementedError
                     else:
@@ -145,6 +155,49 @@ class RawTrace:
 
         assert len(delayed) == 0
 
+    def make_insn(self, insn_data):
+        # TODO: have a nicer parser
+        # currently based on _mkinsn
+        pred, op, args = SASSInstruction.parse(insn_data.insn)
+
+        if SASSFile.SASS_CONTROL_INSN.match(op):
+            i = SASSControlInsn(insn_data.op_idx, pred, op, args, insn_data.insn)
+        else:
+            i = SASSInstruction(insn_data.op_idx, pred, op, args, insn_data.insn)
+
+        return i
+
+    def annotate_insn_regs(self, insn_data):
+        insn = self.make_insn(insn_data)
+
+        regs_written = len([r for r in insn.writes() if isinstance(r, SASSRegister) and r.is_regular()])
+
+        reg_ptr = 0
+        ureg_ptr = 0
+        for o in insn.operands():
+            if isinstance(o.operand, SASSRegister):
+                r = o.operand
+                if r.is_regular():
+                    if r.is_uniform():
+                        if o.access() == 'W' and regs_written < insn_data.width:
+                           for r in o.operand.adjacent(insn_data.width):
+                               print(o.access(), r.n, insn_data.uregs[ureg_ptr])
+                               ureg_ptr += 1
+                        else:
+                            print(o.access(), o.operand.n, insn_data.uregs[ureg_ptr])
+                            ureg_ptr += 1
+                    else:
+                        if o.access() == 'W' and regs_written < insn_data.width:
+                           for r in o.operand.adjacent(insn_data.width):
+                               print(o.access(), r.n, insn_data.regs[reg_ptr])
+                               reg_ptr += 1
+                        else:
+                            print(o.access(), o.operand.n, insn_data.regs[reg_ptr])
+                            reg_ptr += 1
+
+        assert reg_ptr == len(insn_data.regs)
+        assert ureg_ptr == len(insn_data.uregs)
+
 def main():
     p = argparse.ArgumentParser(description="Parse a trace produced by NVBit tool record_reg_vals_thread")
     p.add_argument("tracefile")
@@ -153,6 +206,9 @@ def main():
     t = RawTrace(args.tracefile)
     for l in t.parse_kernel_order():
         print(l)
+        if isinstance(l, InsnData):
+            #print(t.make_insn(l))
+            t.annotate_insn_regs(l)
 
 if __name__ == "__main__":
     main()
