@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import itertools
 import re
 try:
     import compression.bz2 as bz2
@@ -206,8 +207,13 @@ class RawTrace:
                                                (lambda idx: lambda x: x.regs[idx])(reg_ptr)
                                                ))
                                    reg_ptr += 1
-                elif isinstance(o.operand, str) and (o.operand.startswith('c') or o.operand.startswith('-c')):
-                    out.append((o.access(), o.operand, lambda x: x.constant))
+                elif isinstance(o.operand, str):
+                    if (o.operand.startswith('c') or o.operand.startswith('-c')):
+                        if insn_data.constant is not None:
+                            out.append((o.access(), o.operand, lambda x: x.constant))
+                    else:
+                        if not o.operand.startswith('['):
+                            out.append((o.access(), o.operand, (lambda val: lambda x: val)(o.operand)))
 
 
             assert reg_ptr == len(insn_data.regs)
@@ -241,14 +247,55 @@ class RawTrace:
                         state[n] = vals
 
 
+def get_observations(trace):
+    def process_insn_data_args(data):
+        if len(data) <= 1: return
+        insn = data[0]
+        maxargs = max(len(x[2]) if isinstance(x[2], list) else 1 for x in data[1:])
+
+        out = []
+        params = []
+        for args in data[1:]:
+            val = args[2]
+            if isinstance(val, list):
+                if len(val[0]) == 3:
+                    val = [x[2] for x in val]
+            elif isinstance(val, (int, str)):
+                val = [val] * maxargs
+
+            out.append(val)
+            params.append((args[0], args[1]))
+
+        print(insn, maxargs)
+        print(params)
+        argset = set()
+        for args in zip(*out):
+            argset.add(args)
+
+        for args in argset:
+            print(args)
+
+
+    prev_insn_data = []
+    for l in trace.parse_io():
+        if isinstance(l, KernelData):
+            print(l)
+        elif isinstance(l, InsnData):
+            process_insn_data_args(prev_insn_data)
+            prev_insn_data = []
+            prev_insn_data.append(l)
+        else:
+            prev_insn_data.append(l)
+
 def main():
     p = argparse.ArgumentParser(description="Parse a trace produced by NVBit tool record_reg_vals_thread")
     p.add_argument("tracefile")
     args = p.parse_args()
 
     t = RawTrace(args.tracefile)
-    for l in t.parse_io():
-        print(l)
+    get_observations(t)
+    #for l in t.parse_kernel_order():
+    #    print(l)
 
 if __name__ == "__main__":
     main()
