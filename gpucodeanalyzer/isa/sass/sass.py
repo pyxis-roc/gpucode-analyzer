@@ -13,6 +13,9 @@ CX_RE = re.compile(r"-?cx\[(?P<regbase>.+)\]\[(?P<offset>.+)\]")
 CONSTANT_REGS = set(['RZ', 'SRZ', 'URZ', 'PT', 'UPT', 'SR_TID.X', 'SR_CTAID.X',
                      'SR_TID.Y', 'SR_TID.Z', 'SR_CTAID.Y', 'SR_CTAID.Z'])
 
+REG_NUMBER = re.compile(r'(?P<prefix>[^0-9]+)(?P<num>\d+|T)$')
+PT_NUM = 7
+
 class SASSRegister(Register):
     def __init__(self, n, is_inverted = False, is_negated = False, is_reuse = False):
         super().__init__(n)
@@ -54,11 +57,21 @@ class SASSRegister(Register):
 
         return n
 
+    def number(self):
+        m = REG_NUMBER.search(self.n)
+        assert m is not None, self.n
+        num = m.group('num')
+        if num  == 'T':
+            return PT_NUM
+        else:
+            return int(num)
+
     def adjacent(self, adj = 1):
-        regno = re.compile(r'(?P<prefix>[^0-9]+)(?P<num>\d+)$')
-        m = regno.search(self.n)
         if self.n == "RZ" or self.n == "URZ":
             return [self]*adj
+
+        regno = re.compile(r'(?P<prefix>[^0-9]+)(?P<num>\d+)$')
+        m = regno.search(self.n)
         assert m is not None, self.n
         pfx = m.group('prefix')
         r = int(m.group('num'))

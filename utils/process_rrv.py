@@ -12,10 +12,12 @@ from gpucodeanalyzer.isa.sass import SASSInstruction, SASSControlInsn, SASSFile,
 
 INSN_START = re.compile(r"^CTA (?P<ctax>\d+),(?P<ctay>\d+),(?P<ctaz>\d+) - warp (?P<warp>\d+) - (?P<op_idx>\d+) - (?P<insn>.*) ;:$")
 KERNEL_START = re.compile(r"Kernel (?P<name>.*) - grid size (?P<gridx>\d+),(?P<gridy>\d+),(?P<gridz>\d+) - block size (?P<blockx>\d+),(?P<blocky>\d+),(?P<blockz>\d+) - nregs (?P<nregs>\d+) - shmem (?P<shmem>\d+) - cuda stream id (?P<stream>\d+)$")
-VALUES_START = re.compile(r"\* (R|C|U|W)")
+VALUES_START = re.compile(r"\* (R|C|UP|W|U|P)")
 UREG_VALUE = re.compile(r"UReg(?P<reg>\d+): (?P<value>0x.+)$")
 CONST_VALUE = re.compile(r"C(?P<size>\d+): (?P<value>0x.+)$")
 REG_VALUE = re.compile(r"Reg(?P<reg>\d+)_T(?P<thread>\d+): (?P<value>0x[a-f0-9]+) ")
+PRED_VALUE = re.compile(r"Pred: (?P<mask>0x[a-f0-9]+) (?P<value>0x[a-f0-9]+)")
+UPRED_VALUE = re.compile(r"UPred: (?P<mask>0x[a-f0-9]+) (?P<value>0x[a-f0-9]+)")
 WIDTH_VALUE = re.compile(r"Width: (?P<value>\d+)$")
 
 class KernelData:
@@ -43,6 +45,8 @@ class InsnData:
         self.regs = []
         self.uregs = []
         self.constant = None
+        self.pred = None
+        self.upred = None
         self.kernel_idx = kernel_idx
 
     def add_regs(self, regs):
@@ -57,6 +61,20 @@ class InsnData:
 
     def set_width(self, width):
         self.width = width
+
+    def set_upred(self, mask, value):
+        self.upred = (mask, value)
+
+    def get_upred(self, regnum):
+        assert (self.upred[0] & (1 << regnum)) != 0
+        return (self.upred[1] >> regnum) & 1
+
+    def get_pred(self, regnum):
+        assert (self.pred[0] & (1 << regnum)) != 0
+        return (self.pred[1] >> regnum) & 1
+
+    def set_pred(self, mask, value):
+        self.pred = (mask, value)
 
     def __str__(self):
         return f"{self.op_idx} {self.insn}"
@@ -101,7 +119,16 @@ class RawTrace:
                     m = VALUES_START.match(l)
                     if m:
                         ty = m.group(1)
-                        if ty == 'U':
+                        assert insn_data is not None
+
+                        if ty == 'UP':
+                            val = UPRED_VALUE.match(l[2:])
+                            insn_data.set_upred(int(val.group('mask'), base=16), int(val.group('value'), base=16))
+                        elif ty == 'P':
+                            val = PRED_VALUE.match(l[2:])
+                            insn_data.set_pred(int(val.group('mask'), base=16),
+                                               int(val.group('value'), base=16))
+                        elif ty == 'U':
                             val = UREG_VALUE.match(l[2:])
                             assert insn_data is not None
                             insn_data.add_ureg((val.group('reg'), val.group('value')))
@@ -175,6 +202,7 @@ class RawTrace:
         else:
             insn = self.make_insn(insn_data)
 
+            # always regular only
             regs_written = len([r for r in insn.writes() if isinstance(r, SASSRegister) and r.is_regular()])
 
             out = []
@@ -207,6 +235,15 @@ class RawTrace:
                                                (lambda idx: lambda x: x.regs[idx])(reg_ptr)
                                                ))
                                    reg_ptr += 1
+                    elif r.is_predicate():
+                        if r.is_uniform():
+                            out.append((o.access(), r.n,
+                                        (lambda num: lambda x: x.get_upred(num))(r.number())
+                                        ))
+                        else:
+                            out.append((o.access(), r.n,
+                                        (lambda num: lambda x: x.get_pred(num))(r.number())
+                                        ))
                 elif isinstance(o.operand, str):
                     if (o.operand.startswith('c') or o.operand.startswith('-c')):
                         if insn_data.constant is not None:
@@ -228,7 +265,7 @@ class RawTrace:
         for l in self.parse_kernel_order():
             yield l
             if isinstance(l, KernelData):
-                state = {'RZ': 0, 'URZ': 0}
+                state = {'RZ': 0, 'URZ': 0, 'PT': 1, 'UPT': 1}
 
             if isinstance(l, InsnData):
                 writes = []
@@ -243,7 +280,7 @@ class RawTrace:
 
                 for access, n, vals in writes:
                     yield (access, n, vals)
-                    if n != 'RZ' or n != 'URZ':
+                    if n != 'RZ' or n != 'URZ' or n != 'PT' or n != 'UPT':
                         state[n] = vals
 
 
