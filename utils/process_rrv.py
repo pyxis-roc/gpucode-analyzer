@@ -8,7 +8,7 @@ try:
 except ImportError:
     import bz2
 
-from gpucodeanalyzer.isa.sass import SASSInstruction, SASSControlInsn, SASSFile, SASSRegister
+from gpucodeanalyzer.isa.sass import SASSInstruction, SASSControlInsn, SASSFile, SASSRegister, PR_NUM
 
 INSN_START = re.compile(r"^CTA (?P<ctax>\d+),(?P<ctay>\d+),(?P<ctaz>\d+) - warp (?P<warp>\d+) - (?P<op_idx>\d+) - (?P<insn>.*) ;:$")
 KERNEL_START = re.compile(r"Kernel (?P<name>.*) - grid size (?P<gridx>\d+),(?P<gridy>\d+),(?P<gridz>\d+) - block size (?P<blockx>\d+),(?P<blocky>\d+),(?P<blockz>\d+) - nregs (?P<nregs>\d+) - shmem (?P<shmem>\d+) - cuda stream id (?P<stream>\d+)$")
@@ -70,6 +70,9 @@ class InsnData:
         return (self.upred[1] >> regnum) & 1
 
     def get_pred(self, regnum):
+        if regnum == PR_NUM:
+            return self.pred[1]
+
         assert (self.pred[0] & (1 << regnum)) != 0
         return (self.pred[1] >> regnum) & 1
 
@@ -327,12 +330,21 @@ def get_observations(trace):
 def main():
     p = argparse.ArgumentParser(description="Parse a trace produced by NVBit tool record_reg_vals_thread")
     p.add_argument("tracefile")
+    p.add_argument("command", nargs="?", default="observations", choices=['raw', 'kernel_order', 'io', 'observations'])
     args = p.parse_args()
 
     t = RawTrace(args.tracefile)
-    get_observations(t)
-    #for l in t.parse_kernel_order():
-    #    print(l)
+    if args.command == 'observations':
+        get_observations(t)
+    elif args.command == 'raw':
+        for l in t.parse_raw():
+            print(l)
+    elif args.command == 'kernel_order':
+        for l in t.parse_kernel_order():
+            print(l)
+    elif args.command == 'io':
+        for l in t.parse_io():
+            print(l)
 
 if __name__ == "__main__":
     main()

@@ -1,3 +1,3 @@
-from .sass import SASSRegister, SASSInstruction, SASSControlInsn, SASSFile
+from .sass import SASSRegister, SASSInstruction, SASSControlInsn, SASSFile, PT_NUM, PR_NUM
 from .sass2c import SASS2C
 from .classifier import SASSClassifier

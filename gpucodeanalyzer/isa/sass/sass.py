@@ -5,7 +5,7 @@ from ...generic_cfg import Instruction, ControlInsn, Register, Memory, Operand
 # assemblies dumped from cuobjdump usually have function name information and are multiple functions.
 
 SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;(\s*/\* 0x([0-9a-f]+) \*/)?$")
-SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B1|\.H0_H0)?)|(UPT|PT|-?RZ|URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
+SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B1|\.H0_H0)?)|(UPT|PR|PT|-?RZ|URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
 SASS_ADDR_RE = re.compile(r"\[(?P<reg1>R[0-9Z]+)(\.(?P<suff>U32|X16))?(\+(?P<reg2>UR[0-9Z]+)|(?P<imm>0x.+))?\]")
 
 CX_RE = re.compile(r"-?cx\[(?P<regbase>.+)\]\[(?P<offset>.+)\]")
@@ -15,6 +15,7 @@ CONSTANT_REGS = set(['RZ', 'SRZ', 'URZ', 'PT', 'UPT', 'SR_TID.X', 'SR_CTAID.X',
 
 REG_NUMBER = re.compile(r'(?P<prefix>[^0-9]+)(?P<num>\d+|T)$')
 PT_NUM = 7
+PR_NUM = 8
 
 class SASSRegister(Register):
     def __init__(self, n, is_inverted = False, is_negated = False, is_reuse = False):
@@ -58,6 +59,9 @@ class SASSRegister(Register):
         return n
 
     def number(self):
+        if self.n == "PR":
+            return PR_NUM
+
         m = REG_NUMBER.search(self.n)
         assert m is not None, self.n
         num = m.group('num')
