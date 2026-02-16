@@ -3,6 +3,9 @@
 import argparse
 import itertools
 import re
+import json
+import sqlite3
+
 try:
     import compression.bz2 as bz2
 except ImportError:
@@ -306,36 +309,111 @@ def get_observations(trace):
             out.append(val)
             params.append((args[0], args[1]))
 
-        print(insn, maxargs)
-        print(params)
+        insn2 = trace.make_insn(insn)
+        tests = {
+            'insn': insn.insn,
+            'opcode': insn2.opcode,
+            'op_idx': insn.op_idx,
+            'params': [list(p) for p in params],
+            'args': []
+        }
+
+        #print(insn, maxargs)
+        #print(params)
         argset = set()
         for args in zip(*out):
             argset.add(args)
 
         for args in argset:
-            print(args)
+            tests['args'].append(list(args))
+
+        return tests
 
 
     prev_insn_data = []
     for l in trace.parse_io():
         if isinstance(l, KernelData):
-            print(l)
+            yield l
         elif isinstance(l, InsnData):
-            process_insn_data_args(prev_insn_data)
+            yield process_insn_data_args(prev_insn_data)
             prev_insn_data = []
             prev_insn_data.append(l)
         else:
             prev_insn_data.append(l)
 
+class TraceStorage:
+    def __init__(self, dbname):
+        self.dbname = dbname
+        self.conn = sqlite3.connect(self.dbname)
+        self._init_db()
+
+    def _init_db(self):
+        cur = self.conn.cursor()
+        cur.execute("CREATE TABLE IF NOT EXISTS  Kernels (kernel_id INT PRIMARY KEY, name TEXT NOT NULL, grid_x INT, grid_y INT, grid_z INT, blockdim_x INT, blockdim_y INT, blockdim_z INT, nregs INT, shmem INT, stream INT);")
+        cur.execute("CREATE TABLE IF NOT EXISTS Instructions  (instruction_id INTEGER PRIMARY KEY, opcode TEXT NOT NULL, insn TEXT NOT NULL, op_idx INT NOT NULL, cta_x INT, cta_y INT, cta_z INT, warp_id INT, params TEXT, kernel_id NOT NULL, FOREIGN KEY(kernel_id) REFERENCES kernels(kernel_id));")
+        cur.execute("CREATE TABLE IF NOT EXISTS Arguments  (instruction_id INT, arguments TEXT,  FOREIGN KEY(instruction_id) REFERENCES Instructions(instruction_id));")
+        cur.execute("CREATE INDEX IF NOT EXISTS OpcodeIndex ON Instructions(Opcode);")
+        cur.execute("CREATE INDEX IF NOT EXISTS InsnIndex ON Instructions(Insn);")
+
+    def insert_kernel(self, kernel_data):
+        cur = self.conn.cursor()
+        cur.execute('INSERT INTO Kernels (kernel_id, name, grid_x, grid_y, grid_z, blockdim_x, blockdim_y, blockdim_z, nregs, shmem, stream) VALUES (?,?,?,?,?,?,?,?,?,?,?);',
+                    (kernel_data.kernel_idx, kernel_data.kernel,
+                    kernel_data.grid[0], kernel_data.grid[1], kernel_data.grid[2],
+                    kernel_data.blockdim[0], kernel_data.blockdim[1], kernel_data.blockdim[2],
+                     kernel_data.nregs, kernel_data.shmem, kernel_data.stream))
+        self.conn.commit()
+        return kernel_data.kernel_idx
+
+    def insert_instruction(self, kernel_id, instruction):
+        cur = self.conn.cursor()
+
+        insn = SASSInstruction.parse(instruction['insn'])
+        cur.execute('INSERT INTO Instructions (kernel_id, opcode, insn, op_idx, cta_x, cta_y, cta_z, warp_id, params) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);',
+                    (kernel_id,
+                     instruction['opcode'],
+                     instruction['insn'],
+                     instruction['op_idx'],
+                     0,0,0,0,
+                     json.dumps(instruction['params'])))
+
+        last_insn_id = cur.lastrowid
+
+        for a in instruction['args']:
+            cur.execute('INSERT INTO Arguments (instruction_id, arguments) VALUES (?,?);',
+                        (last_insn_id, json.dumps(a)))
+
+
+    def complete(self):
+        self.conn.commit()
+
 def main():
     p = argparse.ArgumentParser(description="Parse a trace produced by NVBit tool record_reg_vals_thread")
     p.add_argument("tracefile")
+    p.add_argument("-o", dest="obs_dbfile", help="Store observations in database")
     p.add_argument("command", nargs="?", default="observations", choices=['raw', 'kernel_order', 'io', 'observations'])
     args = p.parse_args()
 
     t = RawTrace(args.tracefile)
     if args.command == 'observations':
-        get_observations(t)
+        dbfile = None
+        last_kernel_idx = None
+        if args.obs_dbfile:
+            dbfile = TraceStorage(args.obs_dbfile)
+
+        for l in get_observations(t):
+            if isinstance(l, dict):
+                if not dbfile:
+                    print(json.dumps(l))
+                else:
+                    dbfile.insert_instruction(last_kernel_idx, l)
+            elif isinstance(l, KernelData):
+                last_kernel_idx = dbfile.insert_kernel(l)
+                if not dbfile:
+                    print(l)
+
+        if dbfile:
+            dbfile.complete()
     elif args.command == 'raw':
         for l in t.parse_raw():
             print(l)
