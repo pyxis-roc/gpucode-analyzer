@@ -5,6 +5,10 @@ class SASSClassifier:
     def classify(self, insn):
         if insn.opcode.startswith("IMAD") or insn.opcode.startswith("IADD"):
             return "int-arithmetic"
+        elif insn.opcode.startswith("IABS"): # or insn.opcode.startswith("IADD"):
+            return "int-arithmetic"
+        elif insn.opcode.startswith("MUFU."): # or insn.opcode.startswith("IADD"):
+            return "fp-arithmetic"
         elif insn.opcode.startswith('UIADD3.') or insn.opcode == 'UIADD3':
             return "int-arithmetic-uniform"
         elif insn.opcode.startswith("LDG."):
@@ -82,7 +86,7 @@ class SASSClassifier:
             return "int-arithmetic"
         elif insn.opcode.startswith("MOV.") or insn.opcode == "SEL" or insn.opcode == "USEL" or insn.opcode.startswith("UMOV.") or insn.opcode == "MOV" or insn.opcode == "UMOV" or insn.opcode == "P2R":
             return "register-to-register"
-        elif insn.opcode == "CS2R" or insn.opcode == 'S2R':
+        elif insn.opcode == "CS2R" or insn.opcode == 'S2R' or insn.opcode == 'R2P':
             return "register-to-register"
         elif insn.opcode.startswith("SHF."):
             return "int-arithmetic"
@@ -96,6 +100,10 @@ class SASSClassifier:
             return 'tc-arithmetic/fp16' # tensor-code
         elif insn.opcode.startswith('F2FP.'):
             return 'conversion/float'
+        elif insn.opcode.startswith('F2I.'):
+            return 'conversion/float'
+        elif insn.opcode.startswith('I2F.'):
+            return 'conversion/int'
 
         return "unknown"
 
@@ -134,6 +142,10 @@ class SASSClassifier:
             return {}
         elif cls == 'conversion/float':
             return {'conversion': 32} # for now
+        elif cls == 'conversion/int':
+            return {'conversion': 32} # for now
+        elif cls == 'fp-arithmetic':
+            return {'fp-arithmetic': 32} 
         elif cls == 'tc-arithmetic/fp16':
             return {'fp16-arithmetic': (7*32)} # TODO: actual count
         else:
