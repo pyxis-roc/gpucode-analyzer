@@ -387,6 +387,17 @@ class TraceStorage:
             cur.execute('INSERT INTO Arguments (instruction_id, arguments) VALUES (?,?);',
                         (last_insn_id, json.dumps(a)))
 
+    def get_kernel(self, kernel_id):
+        cur = self.conn.cursor()
+        res = cur.execute(f'SELECT * FROM Kernels WHERE kernel_id = ?', (kernel_id,))
+        r = res.fetchone()
+        return r
+
+    def get_kernel_trace(self, kernel_id):
+        cur = self.conn.cursor()
+        res = cur.execute(f'SELECT * FROM Instructions WHERE kernel_id = ? ORDER by instruction_id', (kernel_id,)) # TODO: trace ordering
+        for r in res.fetchall():
+            yield r
 
     def get_instructions_by_opcode(self, opcode, op_idx = None, kernel_id = None):
 
