@@ -34,17 +34,20 @@ class XlatInfo:
         return self.data[fn].get("constant_map", {}).get(constant, None)
 
 class SASS2C:
-    def __init__(self, output, xlatinfo):
+    def __init__(self, output, xlatinfo, pre_insn_hook = None, post_insn_hook = None):
         self.output = output
         self.causes = {}
         self.counters = []
         self.config = set(['gen_path_info'])
         self.xlatinfo = XlatInfo(xlatinfo)
+        self.pre_insn_hook = pre_insn_hook
+        self.post_insn_hook = post_insn_hook
 
     def init_module(self):
         self.output.write("#include <stdint.h>\n")
         self.output.write("#include <stdbool.h>\n")
         self.output.write("#include <stdio.h>\n")
+        self.output.write("#include <assert.h>\n")
 
         if ('gen_path_info' in self.config):
             self.output.write("#include <pathtrace.h>\n")
@@ -297,6 +300,9 @@ class SASS2C:
                 args = process_args(i.args)
 
             if args is not None:
+                if self.pre_insn_hook:
+                    self.pre_insn_hook(i, self.output, True)
+
                 self.output.write(f"    /* {i.label} */    ")
                 if(i.predicate):
                     self.output.write(f"    if({i.predicate})\n    ")
@@ -309,7 +315,15 @@ class SASS2C:
                 else:
                     raise NotImplementedError
 
+                if self.post_insn_hook:
+                    self.post_insn_hook(i, self.output, True)
+
                 return True
+            else:
+                if self.pre_insn_hook:
+                    self.pre_insn_hook(i, self.output, False)
+                if self.post_insn_hook:
+                    self.post_insn_hook(i, self.output, False)
 
         return False
 

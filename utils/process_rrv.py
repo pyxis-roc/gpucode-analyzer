@@ -348,6 +348,7 @@ class TraceStorage:
     def __init__(self, dbname):
         self.dbname = dbname
         self.conn = sqlite3.connect(self.dbname)
+        self.conn.row_factory = sqlite3.Row
         self._init_db()
 
     def _init_db(self):
@@ -386,6 +387,32 @@ class TraceStorage:
             cur.execute('INSERT INTO Arguments (instruction_id, arguments) VALUES (?,?);',
                         (last_insn_id, json.dumps(a)))
 
+
+    def get_instructions_by_opcode(self, opcode, op_idx = None, kernel_id = None):
+
+        cond = ['opcode=?']
+        args = [opcode]
+
+        if op_idx is not None:
+            cond.append('op_idx=?')
+            args.append(op_idx)
+
+        if kernel_id is not None:
+            cond.append('kernel_id=?')
+            args.append(kernel_id)
+
+        cur = self.conn.cursor()
+        res = cur.execute(f'SELECT * FROM Instructions WHERE {" AND ".join(cond)};', tuple(args))
+        for r in res.fetchall():
+            yield r
+
+    def get_instruction_args(self, instruction_id):
+        cur = self.conn.cursor()
+        res = cur.execute(f'SELECT * FROM Arguments WHERE instruction_id = ?',
+                          (instruction_id,))
+
+        for r in res.fetchall():
+            yield r
 
     def complete(self):
         self.conn.commit()
