@@ -142,8 +142,13 @@ class SASS2C:
 
     def xlat_insn(self, i, fn):
         def process_c_lookup(cl):
-            if cl[0] == '-': cl = cl[1:]
-            return self.xlatinfo.map_constant(fn, cl)
+            if cl[0] == '-':
+                neg = "-"
+                cl = cl[1:]
+            else:
+                neg = ""
+
+            return neg + self.xlatinfo.map_constant(fn, cl)
             #if cl == "c[0x0][0x0]":
             #    return "GRID_DIM.X" # webgpu only?
             #else:
@@ -332,7 +337,11 @@ class SASS2C:
                 if len(dbg_spec):
                     fmt_str = '"' + ''.join(dbg_spec) + '"'
                     fmt_val = ", ".join(dbg_args)
-                    self.output.write(f'    if(debug_output) printf({fmt_str}"\\n", {fmt_val});\n')
+                    if i.predicate:
+                        debug_predicate = f"{i.predicate} && "
+                    else:
+                        debug_predicate = ""
+                    self.output.write(f'    if({debug_predicate}debug_output) printf("{i.label} " {fmt_str}"\\n", {fmt_val});\n')
 
         self.output.write("\n")
 
