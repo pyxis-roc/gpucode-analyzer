@@ -59,7 +59,10 @@ class DefUseAnalysis:
                         k = k.union(all_defs)
                         k = k - g
 
-                kills[i.label] = k
+                if i.predicated():
+                    kills[i.label] = set()
+                else:
+                    kills[i.label] = k
                 gens[i.label] = g
                 rd[i.label] = set()
 

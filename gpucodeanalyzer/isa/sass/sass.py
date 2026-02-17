@@ -178,6 +178,9 @@ class SASSInstruction(Instruction):
 
     __repr__ = __str__
 
+    def predicated(self):
+        return self.predicate is not None
+
     def write_count(self):
         if self.opcode in SASSInstruction.WRITE_COUNT:
             write_args = SASSInstruction.WRITE_COUNT[self.opcode]
