@@ -300,11 +300,14 @@ def get_observations(trace):
         params = []
         for args in data[1:]:
             val = args[2]
+
             if isinstance(val, list):
                 if len(val[0]) == 3:
                     val = [x[2] for x in val]
             elif isinstance(val, (int, str)):
                 val = [val] * maxargs
+            elif isinstance(val, tuple) and len(val) == 2:
+                val = [val[1]] * maxargs # Ureg
 
             out.append(val)
             params.append((args[0], args[1]))
@@ -408,9 +411,11 @@ def main():
                 else:
                     dbfile.insert_instruction(last_kernel_idx, l)
             elif isinstance(l, KernelData):
-                last_kernel_idx = dbfile.insert_kernel(l)
                 if not dbfile:
                     print(l)
+                else:
+                    last_kernel_idx = dbfile.insert_kernel(l)
+
 
         if dbfile:
             dbfile.complete()
