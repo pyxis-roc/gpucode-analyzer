@@ -1,6 +1,3 @@
-from .generic_cfg import Register
-from .def_use import DefUseAnalysis
-
 def main():
     from gpucodeanalyzer.isa.sass import SASSFile, SASS2C
     from gpucodeanalyzer.generic_cfg import CFG
