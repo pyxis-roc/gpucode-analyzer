@@ -82,7 +82,7 @@
 #define SHF_R_U32_HI(dst, src1, rot, src2) dst = ((rotate_right_64(concat_u32(src2, src1), rot) >> 32) & 0xFFFFFFFFUL)
 #define USHF_R_U32_HI(dst, src1, rot, src2) SHF_R_U32_HI(dst, src1, rot, src2)
 
-#define SHF_R_S32_HI(dst, src1, rot, src2) dst = (int32_t) ((int64_t) (rotate_right_64(concat_u32(src2, src1), rot) >> 32))
+#define SHF_R_S32_HI(dst, src1, rot, src2) dst = (int32_t) ((rotate_right_64((int64_t) concat_u32(src2, src1), rot) >> 32))
 #define USHF_R_S32_HI(dst, src1, rot, src2) SHF_R_S32_HI(dst, src1, rot, src2)
 
 
@@ -90,7 +90,7 @@
 #define USEL(dst, src1, src2, pred) SEL(dst, src1, src2, pred)
 
 // TODO: is hi taken after the shift or after the add?
-#define LEA_HI(dst, alo, b, ahi, imm_shift) dst = ((concat_u32(ahi, alo) << imm_shift) + b) >> 32
+#define LEA_HI(dst, alo, b, ahi, imm_shift) dst = ((concat_u32(ahi, alo) << imm_shift) >> 32) + b
 
 #define ULEA_HI(dst, alo, b, ahi, imm_shift) LEA_HI(dst, alo, b, ahi, imm_shift)
 
