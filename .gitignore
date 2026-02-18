@@ -8,4 +8,6 @@ edit-distance
 *.pyc
 *.egg-info
 *.pathtrace
+dist/
+src/pathtrace
 

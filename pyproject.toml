@@ -12,6 +12,9 @@ authors = [
 description="A generic framework for analyzing GPU code at the assembly level"
 license="MIT"
 
+[tool.setuptools]
+packages = ["gpucodeanalyzer"]
+
 [project.scripts]
 gca-buildcfg="gpucodeanalyzer.buildcfg:main"
 gca-skelcfg="gpucodeanalyzer.skeletonizer:main"
@@ -19,3 +22,4 @@ gca-classcfg="gpucodeanalyzer.classifier:main"
 gca-bbcount="gpucodeanalyzer.bbcount:main"
 gca-cfg2c="gpucodeanalyzer.cfg2c:main"
 gca-slice="gpucodeanalyzer.slice:main"
+gca-cc="gpucodeanalyzer.cc:main"
