@@ -5,7 +5,7 @@ from ...generic_cfg import Instruction, ControlInsn, Register, Memory, Operand
 # assemblies dumped from cuobjdump usually have function name information and are multiple functions.
 
 SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;(\s*/\* 0x([0-9a-f]+) \*/)?$")
-SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B1|\.H0_H0)?)|(UPT|PR|PT|-?RZ|URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
+SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B[123]|\.H0_H0)?)|(UPT|PR|PT|-?RZ|URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
 SASS_ADDR_RE = re.compile(r"\[(?P<reg1>R[0-9Z]+)(\.(?P<suff>U32|X16))?(\+(?P<reg2>UR[0-9Z]+)|(?P<imm>0x.+))?\]")
 
 CX_RE = re.compile(r"-?cx\[(?P<regbase>.+)\]\[(?P<offset>.+)\]")
@@ -110,6 +110,7 @@ class SASSInstruction(Instruction):
 
     MULTI_WRITER = {'LDG.E.128.STRONG.GPU': {0: 4},
                     'LDG.E.128.CONSTANT': {0: 4},
+                    'LDG.E.LTC128B.CONSTANT': {0: 4},
                     'ULDC.64': {0: 2},
                     'HMMA.16816.F32': {0: 4},
                     'IMAD.WIDE.U32': {0: 2},
@@ -147,7 +148,7 @@ class SASSInstruction(Instruction):
                     a = a[:-len(".reuse")]
                     is_reuse = True
 
-                if a.endswith(".B1"):
+                if a.endswith(".B1") or a.endswith(".B2") or a.endswith(".B3"):
                     a = a[:-len(".B1")]
                     # unknown
 
