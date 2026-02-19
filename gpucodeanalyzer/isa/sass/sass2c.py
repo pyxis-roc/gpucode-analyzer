@@ -217,6 +217,8 @@ class SASS2C:
             opcode = "IMAD"
         elif i.opcode == "IADD3":
             opcode = "IADD3"
+        elif i.opcode == "IABS":
+            opcode = "IABS"
         elif i.opcode == "EXIT":
             opcode = "EXIT"
         elif i.opcode == "UMOV":
@@ -238,12 +240,22 @@ class SASS2C:
             args = process_args(i.args[:-1])
         elif i.opcode == "IMNMX.U32":
             opcode = "IMNMX_U32"
+        elif i.opcode == "I2F.RP":
+            opcode = "I2F_RP"
+        elif i.opcode == "MUFU.RCP":
+            opcode = "MUFU_RCP"
+        elif i.opcode == "F2I.FTZ.U32.TRUNC.NTZ":
+            opcode = "F2I_FTZ_U32_TRUNC_NTZ"
         elif i.opcode == "ULDC":
             opcode = "ULDC"
         elif i.opcode == "ULEA.HI":
             opcode = "ULEA_HI"
         elif i.opcode == "LEA.HI":
             opcode = "LEA_HI"
+        elif i.opcode == "LEA.HI.SX32":
+            opcode = "LEA_HI_SX32"
+        elif i.opcode == "ULEA.HI.SX32":
+            opcode = "ULEA_HI_SX32"
         elif i.opcode == "SEL" or i.opcode == "USEL":
             opcode = i.opcode
         elif i.opcode == "P2R":
@@ -450,4 +462,6 @@ class SASS2C:
         self.counters = []
 
     def finish(self):
-        print(self.causes)
+        if len(self.causes):
+            print("WARNING: Translation failed due to the following causes (missing instructions/data support + frequency of occurrence)")
+            print(self.causes)
