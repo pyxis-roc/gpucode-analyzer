@@ -10,12 +10,15 @@ from gpucodeanalyzer.isa.sass import SASSFile, SASS2C
 from gpucodeanalyzer.generic_cfg import CFG
 
 import tempfile
+import os
 
 Instruction = namedtuple('Instruction', 'instruction_id  opcode insn op_idx kernel_id params')
 
 class TestcaseGenerator:
-    def __init__(self, insn_args):
+    def __init__(self, insn_args, output_file, debug = False):
         self.insn_args = insn_args
+        self.output_file = output_file
+        self.debug = debug
 
     def generate(self):
         self.insns = []
@@ -26,6 +29,10 @@ class TestcaseGenerator:
             for aa in a:
                 self.insns.append((i, aa))
 
+        if len(out) == 0:
+            print("ERROR: No instructions matched. No output generated.")
+            return False
+
         sassfile = None
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.sass') as f:
             sassfile = f.name
@@ -33,7 +40,12 @@ class TestcaseGenerator:
             print("/*ffff*/ EXIT ; \n", file=f);
             #self.insns.append(None)
 
-        self._generate_c(sassfile, 'x.c')
+        self._generate_c(sassfile, self.output_file)
+        if self.debug:
+            print(sassfile)
+        else:
+            os.unlink(sassfile)
+        return True
 
     def pre_hook(self, insn, output, translated):
         if not translated: return
@@ -82,27 +94,31 @@ def main():
     p = argparse.ArgumentParser(description="Generate test cases from a recorded trace")
     p.add_argument("tracedb", help="Output of process_rrv")
     p.add_argument("instruction")
+    p.add_argument("output")
     p.add_argument("--oi", dest="op_idx", type=int)
     p.add_argument("--opc", dest="op_pc", type=lambda x: int(x, base=16))
     p.add_argument("--ki", dest="kernel_id", type=int)
+    p.add_argument("-d", dest="debug", action="store_true")
 
     args = p.parse_args()
 
     db = TraceStorage(args.tracedb)
     out = []
+    output_file = args.output
+    debug = args.debug
 
     op_idx = args.op_idx or (args.op_pc // 16 if args.op_pc else None)
 
     for i in db.get_instructions_by_opcode(args.instruction, op_idx = op_idx, kernel_id = args.kernel_id):
         insn = Instruction(i['instruction_id'], i['opcode'], i['insn'], i['op_idx'], i['kernel_id'], json.loads(i['params']))
 
-        args = []
+        insn_args = []
         for a in db.get_instruction_args(i['instruction_id']):
-            args.append(json.loads(a['arguments']))
+            insn_args.append(json.loads(a['arguments']))
 
-        out.append((insn, args))
+        out.append((insn, insn_args))
 
-    tgc = TestcaseGenerator(out)
+    tgc = TestcaseGenerator(out, output_file, debug=debug)
     tgc.generate()
 
 if __name__ == "__main__":
