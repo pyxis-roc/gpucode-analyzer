@@ -416,6 +416,12 @@ class TraceStorage:
             cur.execute('INSERT INTO Arguments (instruction_id, arguments) VALUES (?,?);',
                         (last_insn_id, json.dumps(a)))
 
+    def get_kernels(self):
+        cur = self.conn.cursor()
+        res = cur.execute(f'SELECT * from Kernels;')
+        for k in res.fetchall():
+            yield k
+
     def get_kernel(self, kernel_id):
         cur = self.conn.cursor()
         res = cur.execute(f'SELECT * FROM Kernels WHERE kernel_id = ?', (kernel_id,))
