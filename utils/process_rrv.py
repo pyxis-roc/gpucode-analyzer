@@ -387,6 +387,7 @@ class TraceStorage:
         cur.execute("CREATE TABLE IF NOT EXISTS Arguments  (instruction_id INT, arguments TEXT,  FOREIGN KEY(instruction_id) REFERENCES Instructions(instruction_id));")
         cur.execute("CREATE INDEX IF NOT EXISTS OpcodeIndex ON Instructions(Opcode);")
         cur.execute("CREATE INDEX IF NOT EXISTS InsnIndex ON Instructions(Insn);")
+        cur.execute("CREATE INDEX IF NOT EXISTS ArgIndex ON Arguments(instruction_id);")
 
     def insert_kernel(self, kernel_data):
         cur = self.conn.cursor()
