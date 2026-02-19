@@ -34,6 +34,7 @@ def main():
 
     p.add_argument("args", nargs="+", help="Source files and other arguments to CC")
     p.add_argument("-o", dest="output")
+    p.add_argument("-g", dest="debug", action="store_true")
 
     args = p.parse_args()
 
@@ -45,6 +46,9 @@ def main():
     cmd.extend(get_flags())
     if args.output:
         cmd.extend(['-o', args.output])
+    if args.debug:
+        cmd.append('-g')
+
     cmd.extend([f"-I{dir}" for dir in get_include_dirs()])
     cmd.extend([f"-L{dir}" for dir in get_lib_dirs()])
     cmd.extend(args.args)
