@@ -22,7 +22,13 @@ def parse_reginfo(sass_insn_match):
 
         live = int(usage.group('live'))
         regstatus = usage.group('status')
-        print("\t", reg_prefixes[i], live, ",".join(reg_prefixes[i] + str(x) for x, u in enumerate(regstatus) if u in ('^', 'x')))
+        writes = ",".join(reg_prefixes[i] + str(x) for x, u in enumerate(regstatus) if u in ('^', 'x'))
+        if len(writes):
+            writes = "writes " + writes
+        else:
+            writes = ""
+
+        print("\t", reg_prefixes[i], "live", live, writes)
 
 def get_instructions(textit):
     for i in textit:
