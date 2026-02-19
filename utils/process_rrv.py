@@ -14,7 +14,7 @@ except ImportError:
 from gpucodeanalyzer.isa.sass import SASSInstruction, SASSControlInsn, SASSFile, SASSRegister, PR_NUM
 
 INSN_START = re.compile(r"^CTA (?P<ctax>\d+),(?P<ctay>\d+),(?P<ctaz>\d+) - warp (?P<warp>\d+) - (?P<op_idx>\d+) - (?P<insn>.*) ;:$")
-KERNEL_START = re.compile(r"Kernel (?P<name>.*) - grid size (?P<gridx>\d+),(?P<gridy>\d+),(?P<gridz>\d+) - block size (?P<blockx>\d+),(?P<blocky>\d+),(?P<blockz>\d+) - nregs (?P<nregs>\d+) - shmem (?P<shmem>\d+) - cuda stream id (?P<stream>\d+)$")
+KERNEL_START = re.compile(r"Kernel (?P<name>.*) - grid size (?P<gridx>\d+),(?P<gridy>\d+),(?P<gridz>\d+) - block size (?P<blockx>\d+),(?P<blocky>\d+),(?P<blockz>\d+) - nregs (?P<nregs>\d+) - shmem (?P<shmem>\d+) - cuda stream id (?P<stream>\d+)( - ipoint_pre (?P<ipoint_pre>\d+))?$")
 VALUES_START = re.compile(r"\* (R|C|UP|W|U|P)")
 UREG_VALUE = re.compile(r"UReg(?P<reg>\d+): (?P<value>0x.+)$")
 CONST_VALUE = re.compile(r"C(?P<size>\d+): (?P<value>0x.+)$")
@@ -88,8 +88,9 @@ class InsnData:
     __repr__ = __str__
 
 class RawTrace:
-    def __init__(self, trace):
+    def __init__(self, trace, state_tracking = True):
         self.trace = trace
+        self.state_tracking = state_tracking
         self._anno_cache = {}
 
     def _parse_regs(self, l):
@@ -280,7 +281,10 @@ class RawTrace:
                         writes.append((access, n, vals))
                         continue
                     else:
-                        vals = state.get(n, vals)
+                        if self.state_tracking:
+                            vals = state.get(n, vals)
+                        else:
+                            pass
 
                     yield (access, n, vals)
 
@@ -336,9 +340,14 @@ def get_observations(trace):
     prev_insn_data = []
     for l in trace.parse_io():
         if isinstance(l, KernelData):
+            if len(prev_insn_data):
+                yield process_insn_data_args(prev_insn_data)
+                prev_insn_data = []
+
             yield l
         elif isinstance(l, InsnData):
-            yield process_insn_data_args(prev_insn_data)
+            if len(prev_insn_data):
+                yield process_insn_data_args(prev_insn_data)
             prev_insn_data = []
             prev_insn_data.append(l)
         else:
@@ -431,11 +440,12 @@ class TraceStorage:
 def main():
     p = argparse.ArgumentParser(description="Parse a trace produced by NVBit tool record_reg_vals_thread")
     p.add_argument("tracefile")
+    p.add_argument("--no-state", action="store_true", help="Don't track state to fix up read values")
     p.add_argument("-o", dest="obs_dbfile", help="Store observations in database")
     p.add_argument("command", nargs="?", default="observations", choices=['raw', 'kernel_order', 'io', 'observations'])
     args = p.parse_args()
 
-    t = RawTrace(args.tracefile)
+    t = RawTrace(args.tracefile, state_tracking = not args.no_state)
     if args.command == 'observations':
         dbfile = None
         last_kernel_idx = None
@@ -469,5 +479,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
