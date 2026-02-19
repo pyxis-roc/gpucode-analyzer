@@ -220,35 +220,35 @@ class RawTrace:
                     r = o.operand
                     if r.is_regular():
                         if r.is_uniform():
-                            out.append((o.access(), r.n,
+                            out.append((o.access(), r,
                                         (lambda idx: lambda x: x.uregs[idx])(ureg_ptr)
                                         ))
                             ureg_ptr += 1
 
                             if o.access() == 'W' and regs_written < insn_data.width:
                                for r in o.operand.adjacent(insn_data.width-1):
-                                   out.append((o.access(), r.n,
+                                   out.append((o.access(), r,
                                                (lambda idx: lambda x: x.uregs[idx])(ureg_ptr)
                                                ))
                                    ureg_ptr += 1
                         else:
-                            out.append((o.access(), r.n,
+                            out.append((o.access(), r,
                                         (lambda idx: lambda x: x.regs[idx])(reg_ptr)))
                             reg_ptr += 1
 
                             if o.access() == 'W' and regs_written < insn_data.width:
                                for r in o.operand.adjacent(insn_data.width-1):
-                                   out.append((o.access(), r.n,
+                                   out.append((o.access(), r,
                                                (lambda idx: lambda x: x.regs[idx])(reg_ptr)
                                                ))
                                    reg_ptr += 1
                     elif r.is_predicate():
                         if r.is_uniform():
-                            out.append((o.access(), r.n,
+                            out.append((o.access(), r,
                                         (lambda num: lambda x: x.get_upred(num))(r.number())
                                         ))
                         else:
-                            out.append((o.access(), r.n,
+                            out.append((o.access(), r,
                                         (lambda num: lambda x: x.get_pred(num))(r.number())
                                         ))
                 elif isinstance(o.operand, str):
@@ -260,15 +260,24 @@ class RawTrace:
                             out.append((o.access(), o.operand, (lambda val: lambda x: val)(o.operand)))
 
 
-            assert reg_ptr == len(insn_data.regs)
-            assert ureg_ptr == len(insn_data.uregs)
+            assert reg_ptr == len(insn_data.regs), insn_data.insn
+            assert ureg_ptr == len(insn_data.uregs), insn_data.insn
             self._anno_cache[insn_data.insn] = out
 
         for o in out:
             yield (o[0], o[1], o[2](insn_data))
 
     def parse_io(self):
+        def get_reg_or_str(op):
+            if isinstance(op, SASSRegister):
+                return op.n
+            elif isinstance(op, str):
+                return op
+            else:
+                raise NotImplementedError(op)
+
         state = {'RZ': 0}
+        writer = {}
         for l in self.parse_kernel_order():
             yield l
             if isinstance(l, KernelData):
@@ -276,23 +285,34 @@ class RawTrace:
 
             if isinstance(l, InsnData):
                 writes = []
-                for access, n, vals in self.annotate_insn_regs(l):
+                for access, op, vals in self.annotate_insn_regs(l):
                     if access == 'W':
-                        writes.append((access, n, vals))
+                        writes.append((access, op, vals))
                         continue
                     else:
-                        if self.state_tracking:
-                            vals = state.get(n, vals)
-                        else:
-                            pass
+                        if self.state_tracking and isinstance(op, SASSRegister):
+                            if op.n != 'PR':
+                                if op.n not in state:
+                                    print(f"{op.n} not written to before reading for {l}")
+                                    print(state)
+                                    print(sorted([(k, v) for k, v in writer.items()]))
+                                    vals = f"?uninit-{op.n}"
+                                else:
+                                    vals = state.get(op.n)
 
-                    yield (access, n, vals)
+                    yield (access, get_reg_or_str(op), vals)
 
-                for access, n, vals in writes:
-                    yield (access, n, vals)
-                    if n != 'RZ' or n != 'URZ' or n != 'PT' or n != 'UPT':
-                        state[n] = vals
+                for access, op, vals in writes:
+                    yield (access, get_reg_or_str(op), vals)
+                    if isinstance(op, SASSRegister) and not op.is_constant():
+                        state[op.n] = vals
+                        writer[op.n] = l.op_idx
 
+                        # TODO
+                        if l.insn.startswith("CS2R") and l.insn.endswith("SRZ"):
+                            adj = op.adjacent(1)[0]
+                            state[adj.n] = 0
+                            writer[adj.n] = l.op_idx
 
 def get_observations(trace):
     def process_insn_data_args(data):
