@@ -106,6 +106,7 @@ class SASSOperand(Operand):
 class SASSInstruction(Instruction):
     WRITE_COUNT = {'BSYNC': 0,
                    ('IADD3', 5): 2,
+                   ('IADD3', 6): 3,
                    ('LOP3.LUT', 7): 2}
 
     MULTI_WRITER = {'LDG.E.128.STRONG.GPU': {0: 4},
