@@ -1,4 +1,5 @@
 from .sass import SASSRegister
+from itertools import chain
 
 class XlatInfo:
     def __init__(self, data):
@@ -33,21 +34,49 @@ class XlatInfo:
     def map_constant(self, fn, constant):
         return self.data[fn].get("constant_map", {}).get(constant, None)
 
-class BlockHook:
-    def init(self, where, output):
+class Hook:
+    name = None
+    def gencode(self, translator, where, output):
         pass
 
+    def params(self, what):
+        return []
+
+    def args(self, what):
+        return []
+
+class BlockHook(Hook):
     def block_entry_hook(self, translator, block, output):
         pass
 
     # TODO: think about exit hooks, complicated by control flow.
 
 class PathTraceBlockHook(BlockHook):
-    def init(self, where, output):
+    def gencode(self, translator, where, output):
         if where == 'includes':
             output.write("#include <pathtrace.h>\n")
         elif where == 'global':
             output.write("bool debug_flow;\n");
+        elif where == 'kernel':
+            output.write(f"    struct path_traces *pt = path_trace_create(GRID_DIM.X*GRID_DIM.Y*GRID_DIM.Z*CTA_DIM.X*CTA_DIM.Y*CTA_DIM.Z); \n")
+            output.write(f'    if(!pt) fprintf(stderr, "ERROR: Failed to create path trace.\\n");\n')
+            output.write(f'    uint64_t pt_trace_id = 0;\n')
+        elif where == 'threadloop':
+            output.write(f"        path_trace_init(pt, pt_trace_id, pt_trace_id);\n")
+        elif where == 'kernel_end':
+            output.write(f"        path_trace_dump(pt);\n")
+
+    def params(self, what):
+        if what == 'thread':
+            return ['struct trace *trace']
+
+        return []
+
+    def args(self, what):
+        if what == 'thread':
+            return ['pt == NULL ? NULL : &pt->trace[pt_trace_id++]']
+
+        return []
 
     def block_entry_hook(self, translator, block, output):
         output.write(f'    path_trace_add_entry_fast(trace, 0x{block.target()}, 1);\n')
@@ -60,11 +89,7 @@ class BBCountBlockHook(BlockHook):
     def block_entry_hook(self, translator, block, output):
         output.write(f'    {translator.func_name}_bbcount_{block.target()}++;\n')
 
-class InsnHook:
-    name = None
-    def init(self, where, output):
-        pass
-
+class InsnHook(Hook):
     def pre_hook(self, insn, output, translated):
         pass
 
@@ -73,9 +98,11 @@ class InsnHook:
 
 class DebugOutputInsnHook(InsnHook):
     name = 'DebugOutput' # should be class name?
-    def init(self, where, output):
+    def gencode(self, translator, where, output):
         if where == 'global':
             output.write("bool debug_output;\n");
+        elif where == 'kernel_end':
+            output.write(f"    {translator.func_name}_counters();\n")
 
     def post_hook(self, insn, output, translated):
         if not translated:
@@ -117,16 +144,17 @@ class SASS2C:
         if hooks is not None:
             self.hooks.extend(hooks)
 
+    def call_hook_gencodes(self, where):
+        for hk in chain(self.block_hooks, self.hooks):
+            hk.gencode(self, where, self.output)
+
     def init_module(self):
         self.output.write("#include <stdint.h>\n")
         self.output.write("#include <stdbool.h>\n")
         self.output.write("#include <stdio.h>\n")
         self.output.write("#include <assert.h>\n")
 
-        for bh in self.block_hooks:
-            bh.init('includes', self.output)
-        for h in self.hooks:
-            h.init('includes', self.output)
+        self.call_hook_gencodes('includes')
 
         self.output.write('#include "sass_insns.h"\n\n')
         self.output.write('#include "lop3_lut.h"\n\n')
@@ -135,10 +163,7 @@ class SASS2C:
         self.output.write("typedef bool sass_predicate_reg;\n")
         self.output.write("typedef struct { sass_reg X; sass_reg Y; sass_reg Z; } sass_vec3;\n\n")
 
-        for h in self.hooks:
-            h.init('global', self.output)
-        for bh in self.block_hooks:
-            bh.init('global', self.output)
+        self.call_hook_gencodes('global')
 
     def declare_registers(self):
         self.output.write("    const sass_reg RZ = 0;\n")
@@ -188,10 +213,9 @@ class SASS2C:
         self.func_name = func_name
         self.output.write("// cfg\n")
 
-        if ('gen_path_info' in self.config):
-            args = ['struct trace *trace']
-        else:
-            args = []
+        args = []
+        for bh in self.block_hooks:
+            args.extend(bh.params('thread'))
 
         args.extend(['const sass_vec3 GRID_DIM', 'const sass_vec3 CTA_DIM', 'const sass_vec3 SR_CTAID', 'const sass_vec3 SR_TID'])
         args.extend(self.xlatinfo.get_args(func_name))
@@ -488,10 +512,7 @@ class SASS2C:
         self.output.write(f"    sass_vec3 SR_CTAID;\n")
         self.output.write(f"    sass_vec3 SR_TID;\n")
 
-        if ('gen_path_info' in self.config):
-            self.output.write(f"    struct path_traces *pt = path_trace_create(GRID_DIM.X*GRID_DIM.Y*GRID_DIM.Z*CTA_DIM.X*CTA_DIM.Y*CTA_DIM.Z); \n")
-            self.output.write(f'    if(!pt) fprintf(stderr, "ERROR: Failed to create path trace.\\n");\n')
-            self.output.write(f'    uint64_t pt_trace_id = 0;\n')
+        self.call_hook_gencodes('kernel')
 
         self.output.write("    for(SR_CTAID.Z=0; SR_CTAID.Z<GRID_DIM.Z; SR_CTAID.Z++) {\n")
         self.output.write("    for(SR_CTAID.Y=0; SR_CTAID.Y<GRID_DIM.Y; SR_CTAID.Y++) {\n")
@@ -501,11 +522,11 @@ class SASS2C:
         self.output.write("      for(SR_TID.Y=0; SR_TID.Y<CTA_DIM.Y; SR_TID.Y++) {\n")
         self.output.write("      for(SR_TID.X=0; SR_TID.X<CTA_DIM.X; SR_TID.X++) {\n")
 
-        if ('gen_path_info' in self.config):
-            self.output.write(f"        path_trace_init(pt, pt_trace_id, pt_trace_id);\n")
-            call_args = ['pt == NULL ? NULL : &pt->trace[pt_trace_id++]']
-        else:
-            call_args = []
+        self.call_hook_gencodes('threadloop')
+
+        call_args = []
+        for h in chain(self.block_hooks, self.hooks):
+            call_args.extend(h.args('thread'))
 
         call_args.extend(['GRID_DIM', 'CTA_DIM', 'SR_CTAID', 'SR_TID'])
         call_args.extend(self.xlatinfo.get_arg_names(self.func_name))
@@ -515,10 +536,8 @@ class SASS2C:
         self.output.write(f"       {self.func_name}_thread({call_args});\n")
 
         self.output.write("     }}}}}}\n")
-        self.output.write(f"    {self.func_name}_counters();\n")
 
-        if ('gen_path_info' in self.config):
-            self.output.write(f"        path_trace_dump(pt);\n")
+        self.call_hook_gencodes('kernel_end')
 
         self.output.write("}\n")
 
