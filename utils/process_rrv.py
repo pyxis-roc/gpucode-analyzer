@@ -168,7 +168,7 @@ class RawTrace:
 
         for l in self.parse_raw():
             if isinstance(l, InsnData):
-                if l.cta == ('0', '0', '0') and l.warp_id == 0 and l.op_idx == 0:
+                if l.op_idx == 0:
                     assert len(delayed) == 0
                     kernel_ndx += 1
                     if kernel_ndx < len(kernels):
@@ -340,6 +340,8 @@ def get_observations(trace):
         tests = {
             'insn': insn.insn,
             'opcode': insn2.opcode,
+            'cta': insn.cta,
+            'warp_id': insn.warp_id,
             'op_idx': insn.op_idx,
             'params': [list(p) for p in params],
             'args': []
@@ -408,7 +410,8 @@ class TraceStorage:
                      instruction['opcode'],
                      instruction['insn'],
                      instruction['op_idx'],
-                     0,0,0,0,
+                     instruction['cta'][0],instruction['cta'][1],instruction['cta'][2],
+                     instruction['warp_id'],
                      json.dumps(instruction['params'])))
 
         last_insn_id = cur.lastrowid
