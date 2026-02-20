@@ -34,10 +34,31 @@ class XlatInfo:
         return self.data[fn].get("constant_map", {}).get(constant, None)
 
 class BlockHook:
-    def block_entry_hook(self, block, output):
+    def init(self, where, output):
+        pass
+
+    def block_entry_hook(self, translator, block, output):
         pass
 
     # TODO: think about exit hooks, complicated by control flow.
+
+class PathTraceBlockHook(BlockHook):
+    def init(self, where, output):
+        if where == 'includes':
+            output.write("#include <pathtrace.h>\n")
+        elif where == 'global':
+            output.write("bool debug_flow;\n");
+
+    def block_entry_hook(self, translator, block, output):
+        output.write(f'    path_trace_add_entry_fast(trace, 0x{block.target()}, 1);\n')
+
+class DebugFlowBlockHook(BlockHook):
+    def block_entry_hook(self, translator, block, output):
+        output.write(f'    if(debug_flow) printf("{block.target()}\\n");\n')
+
+class BBCountBlockHook(BlockHook):
+    def block_entry_hook(self, translator, block, output):
+        output.write(f'    {translator.func_name}_bbcount_{block.target()}++;\n')
 
 class InsnHook:
     name = None
@@ -85,6 +106,14 @@ class SASS2C:
         self.config = set(['gen_path_info'])
         self.xlatinfo = XlatInfo(xlatinfo)
         self.hooks = [DebugOutputInsnHook()]
+        self.block_hooks = []
+
+        if ('gen_path_info' in self.config):
+            self.block_hooks.append(PathTraceBlockHook())
+
+        self.block_hooks.append(BBCountBlockHook())
+        self.block_hooks.append(DebugFlowBlockHook())
+
         if hooks is not None:
             self.hooks.extend(hooks)
 
@@ -94,8 +123,10 @@ class SASS2C:
         self.output.write("#include <stdio.h>\n")
         self.output.write("#include <assert.h>\n")
 
-        if ('gen_path_info' in self.config):
-            self.output.write("#include <pathtrace.h>\n")
+        for bh in self.block_hooks:
+            bh.init('includes', self.output)
+        for h in self.hooks:
+            h.init('includes', self.output)
 
         self.output.write('#include "sass_insns.h"\n\n')
         self.output.write('#include "lop3_lut.h"\n\n')
@@ -106,8 +137,8 @@ class SASS2C:
 
         for h in self.hooks:
             h.init('global', self.output)
-
-        self.output.write("bool debug_flow;\n");
+        for bh in self.block_hooks:
+            bh.init('global', self.output)
 
     def declare_registers(self):
         self.output.write("    const sass_reg RZ = 0;\n")
@@ -388,20 +419,10 @@ class SASS2C:
         for h in self.hooks:
             h.post_hook(insn, output, translated)
 
-    def path_trace_block_entry_hook(self, block, output):
-        if ('gen_path_info' in self.config):
-            output.write(f'    path_trace_add_entry_fast(trace, 0x{block.target()}, 1);\n')
-
-    def debug_flow_block_entry_hook(self, block, output):
-        output.write(f'    if(debug_flow) printf("{block.target()}\\n");\n')
-
-    def bbcount_block_entry_hook(self, block, output):
-        output.write(f'    {self.func_name}_bbcount_{block.target()}++;\n')
 
     def invoke_block_entry_hooks(self, block, output):
-        self.path_trace_block_entry_hook(block, output)
-        self.bbcount_block_entry_hook(block, output)
-        self.debug_flow_block_entry_hook(block, output)
+        for bh in self.block_hooks:
+            bh.block_entry_hook(self,  block, output)
 
     def convert_block(self, block):
         if not hasattr(block, '_target'): return
