@@ -6,7 +6,7 @@ import json
 from process_rrv import TraceStorage
 from collections import namedtuple
 
-from gpucodeanalyzer.isa.sass import SASSFile, SASS2C
+from gpucodeanalyzer.isa.sass import SASSFile, SASS2C, InsnHook
 from gpucodeanalyzer.generic_cfg import CFG
 
 import tempfile
@@ -14,11 +14,39 @@ import os
 
 Instruction = namedtuple('Instruction', 'instruction_id  opcode insn op_idx kernel_id params')
 
+class TestInsnHook(InsnHook):
+    name = "TestInsnHook"
+
+    def __init__(self, gen, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.gen = gen
+
+    def pre_hook(self, insn, output, translated):
+        if not translated: return
+
+        i, a = self.gen.insns[self.gen._insn_count]
+
+        for (m, r), a in zip(i.params, a):
+            if m == 'R' and (r[0] == 'R' or r[0] == 'U'):
+                if r != 'RZ' and r!= 'URZ' and r != 'UPT':
+                    output.write(f"{r} = {a};\n")
+
+    def post_hook(self, insn, output, translated):
+        self.gen._insn_count += 1
+        if not translated: return
+
+        i, a = self.gen.insns[self.gen._insn_count-1]
+
+        for (m, r), a in zip(i.params, a):
+            if m == 'W' and (r[0] == 'R' or r[0] == 'U'):
+                output.write(f"assert({r} == {a});\n")
+
 class TestcaseGenerator:
     def __init__(self, insn_args, output_file, debug = False):
         self.insn_args = insn_args
         self.output_file = output_file
         self.debug = debug
+        self.hook = TestInsnHook(self)
 
     def generate(self):
         self.insns = []
@@ -47,25 +75,6 @@ class TestcaseGenerator:
             os.unlink(sassfile)
         return True
 
-    def pre_hook(self, insn, output, translated):
-        if not translated: return
-
-        i, a = self.insns[self._insn_count]
-
-        for (m, r), a in zip(i.params, a):
-            if m == 'R' and (r[0] == 'R' or r[0] == 'U'):
-                if r != 'RZ' and r!= 'URZ' and r != 'UPT':
-                    output.write(f"{r} = {a};\n")
-
-    def post_hook(self, insn, output, translated):
-        self._insn_count += 1
-        if not translated: return
-
-        i, a = self.insns[self._insn_count-1]
-
-        for (m, r), a in zip(i.params, a):
-            if m == 'W' and (r[0] == 'R' or r[0] == 'U'):
-                output.write(f"assert({r} == {a});\n")
 
     def _generate_c(self, sassfile, output):
         code = SASSFile(sassfile)
@@ -84,8 +93,7 @@ class TestcaseGenerator:
 
         self._insn_count = 0
         with open(output, "w") as f:
-            op = SASS2C(f, xlatinfo, pre_insn_hook = self.pre_hook,
-                        post_insn_hook = self.post_hook)
+            op = SASS2C(f, xlatinfo, hooks=[self.hook])
             op.init_module()
             cfg.convert(op, func_name)
             op.finish()

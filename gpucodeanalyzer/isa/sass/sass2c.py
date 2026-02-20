@@ -33,18 +33,60 @@ class XlatInfo:
     def map_constant(self, fn, constant):
         return self.data[fn].get("constant_map", {}).get(constant, None)
 
+class BlockHook:
+    def block_entry_hook(self, block, output):
+        pass
+
+    # TODO: think about exit hooks, complicated by control flow.
+
+class InsnHook:
+    name = None
+    def init(self, where, output):
+        pass
+
+    def pre_hook(self, insn, output, translated):
+        pass
+
+    def post_hook(self, insn, output, translated):
+        pass
+
+class DebugOutputInsnHook(InsnHook):
+    name = 'DebugOutput' # should be class name?
+    def init(self, where, output):
+        if where == 'global':
+            output.write("bool debug_output;\n");
+
+    def post_hook(self, insn, output, translated):
+        if not translated:
+            return
+
+        dbg_spec = []
+        dbg_args = []
+        for r in insn.writes():
+            if isinstance(r, SASSRegister):
+                dbg_spec.append(f"{r.n}: %x ")
+                dbg_args.append(r.n)
+
+        if len(dbg_spec):
+            fmt_str = '"' + ''.join(dbg_spec) + '"'
+            fmt_val = ", ".join(dbg_args)
+            if insn.predicate:
+                debug_predicate = f"{insn.predicate} && "
+            else:
+                debug_predicate = ""
+
+            output.write(f'    if({debug_predicate}debug_output) printf("{insn.label} " {fmt_str}"\\n", {fmt_val});\n')
+
 class SASS2C:
-    def __init__(self, output, xlatinfo, pre_insn_hook = None, post_insn_hook = None):
+    def __init__(self, output, xlatinfo, hooks = None):
         self.output = output
         self.causes = {}
         self.counters = []
         self.config = set(['gen_path_info'])
         self.xlatinfo = XlatInfo(xlatinfo)
-        self.pre_insn_hook = []
-        self.post_insn_hook = [self.debug_output_post_hook]
-
-        if pre_insn_hook: self.pre_insn_hook.append(pre_insn_hook)
-        if post_insn_hook: self.post_insn_hook.append(post_insn_hook)
+        self.hooks = [DebugOutputInsnHook()]
+        if hooks is not None:
+            self.hooks.extend(hooks)
 
     def init_module(self):
         self.output.write("#include <stdint.h>\n")
@@ -62,7 +104,9 @@ class SASS2C:
         self.output.write("typedef bool sass_predicate_reg;\n")
         self.output.write("typedef struct { sass_reg X; sass_reg Y; sass_reg Z; } sass_vec3;\n\n")
 
-        self.output.write("bool debug_output;\n");
+        for h in self.hooks:
+            h.init('global', self.output)
+
         self.output.write("bool debug_flow;\n");
 
     def declare_registers(self):
@@ -337,33 +381,12 @@ class SASS2C:
         return False
 
     def invoke_pre_hooks(self, insn, output, translated):
-        for h in self.pre_insn_hook:
-            h(insn, output, translated)
+        for h in self.hooks:
+            h.pre_hook(insn, output, translated)
 
     def invoke_post_hooks(self, insn, output, translated):
-        for h in self.post_insn_hook:
-            h(insn, output, translated)
-
-    def debug_output_post_hook(self, insn, output, translated):
-        if not translated:
-            return
-
-        dbg_spec = []
-        dbg_args = []
-        for r in insn.writes():
-            if isinstance(r, SASSRegister):
-                dbg_spec.append(f"{r.n}: %x ")
-                dbg_args.append(r.n)
-
-        if len(dbg_spec):
-            fmt_str = '"' + ''.join(dbg_spec) + '"'
-            fmt_val = ", ".join(dbg_args)
-            if insn.predicate:
-                debug_predicate = f"{insn.predicate} && "
-            else:
-                debug_predicate = ""
-
-            output.write(f'    if({debug_predicate}debug_output) printf("{insn.label} " {fmt_str}"\\n", {fmt_val});\n')
+        for h in self.hooks:
+            h.post_hook(insn, output, translated)
 
     def path_trace_block_entry_hook(self, block, output):
         if ('gen_path_info' in self.config):
