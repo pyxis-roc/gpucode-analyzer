@@ -89,6 +89,25 @@ class BBCountBlockHook(BlockHook):
     def block_entry_hook(self, translator, block, output):
         output.write(f'    {translator.func_name}_bbcount_{block.target()}++;\n')
 
+    def gencode(self, translator, where, output):
+        if where == 'global_cfg':
+            counters = []
+            for b in translator.cfg.blocks:
+                try:
+                    t = b.target()
+                    if t in ('_start', '_exit'): continue
+                    cv = f"{translator.func_name}_bbcount_{t}"
+                    output.write(f"    uint64_t {cv} = 0;\n")
+                    counters.append(cv)
+                except ValueError:
+                    pass
+
+            output.write(f"void {translator.func_name}_counters() {{\n")
+            for c in counters:
+                output.write(f'    printf("{c} = %lu\\n", {c});\n')
+
+            output.write("}\n")
+
 class InsnHook(Hook):
     def pre_hook(self, insn, output, translated):
         pass
@@ -211,6 +230,9 @@ class SASS2C:
     def init_cfg(self, cfg, func_name):
         self.cfg = cfg
         self.func_name = func_name
+
+        self.call_hook_gencodes('global_cfg')
+
         self.output.write("// cfg\n")
 
         args = []
@@ -224,11 +246,8 @@ class SASS2C:
         for l in self.xlatinfo.get_global_decls(func_name):
             self.output.write(l + "\n")
 
-        self.declare_counts()
         self.output.write(f"void {func_name}_thread({', '.join(args)}) {{\n")
-
         self.declare_registers()
-
 
     def output_block_order(self):
         order = [('_start', -1)]
@@ -496,12 +515,6 @@ class SASS2C:
     def finish_cfg(self):
         self.output.write("label_exit:\n")
         self.output.write("    ;\n")
-        self.output.write("}\n")
-
-
-        self.output.write(f"void {self.func_name}_counters() {{\n")
-        for c in self.counters:
-            self.output.write(f'    printf("{c} = %lu\\n", {c});\n')
         self.output.write("}\n")
 
         args = ['const sass_vec3 GRID_DIM', 'const sass_vec3 CTA_DIM']
