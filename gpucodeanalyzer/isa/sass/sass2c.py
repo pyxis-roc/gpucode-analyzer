@@ -40,8 +40,11 @@ class SASS2C:
         self.counters = []
         self.config = set(['gen_path_info'])
         self.xlatinfo = XlatInfo(xlatinfo)
-        self.pre_insn_hook = pre_insn_hook
-        self.post_insn_hook = post_insn_hook
+        self.pre_insn_hook = []
+        self.post_insn_hook = [self.debug_output_post_hook]
+
+        if pre_insn_hook: self.pre_insn_hook.append(pre_insn_hook)
+        if post_insn_hook: self.post_insn_hook.append(post_insn_hook)
 
     def init_module(self):
         self.output.write("#include <stdint.h>\n")
@@ -143,7 +146,7 @@ class SASS2C:
     def _xlat_failure(self, cause):
         self.causes[cause] = self.causes.get(cause, 0) + 1
 
-    def xlat_insn(self, i, fn):
+    def xlat_insn(self, i, fn, pre_hook = None, post_hook = None):
         def process_c_lookup(cl):
             if cl[0] == '-':
                 neg = "-"
@@ -312,9 +315,7 @@ class SASS2C:
                 args = process_args(i.args)
 
             if args is not None:
-                if self.pre_insn_hook:
-                    self.pre_insn_hook(i, self.output, True)
-
+                if pre_hook: pre_hook(i, self.output, True)
                 self.output.write(f"    /* {i.label} */    ")
                 if(i.predicate):
                     self.output.write(f"    if({i.predicate})\n    ")
@@ -327,47 +328,68 @@ class SASS2C:
                 else:
                     raise NotImplementedError
 
-                if self.post_insn_hook:
-                    self.post_insn_hook(i, self.output, True)
-
+                if post_hook: post_hook(i, self.output, True)
                 return True
-            else:
-                if self.pre_insn_hook:
-                    self.pre_insn_hook(i, self.output, False)
-                if self.post_insn_hook:
-                    self.post_insn_hook(i, self.output, False)
+
+        if pre_hook: pre_hook(i, self.output, False)
+        if post_hook: post_hook(i, self.output, False)
 
         return False
+
+    def invoke_pre_hooks(self, insn, output, translated):
+        for h in self.pre_insn_hook:
+            h(insn, output, translated)
+
+    def invoke_post_hooks(self, insn, output, translated):
+        for h in self.post_insn_hook:
+            h(insn, output, translated)
+
+    def debug_output_post_hook(self, insn, output, translated):
+        if not translated:
+            return
+
+        dbg_spec = []
+        dbg_args = []
+        for r in insn.writes():
+            if isinstance(r, SASSRegister):
+                dbg_spec.append(f"{r.n}: %x ")
+                dbg_args.append(r.n)
+
+        if len(dbg_spec):
+            fmt_str = '"' + ''.join(dbg_spec) + '"'
+            fmt_val = ", ".join(dbg_args)
+            if insn.predicate:
+                debug_predicate = f"{insn.predicate} && "
+            else:
+                debug_predicate = ""
+
+            output.write(f'    if({debug_predicate}debug_output) printf("{insn.label} " {fmt_str}"\\n", {fmt_val});\n')
+
+    def path_trace_block_entry_hook(self, block, output):
+        if ('gen_path_info' in self.config):
+            output.write(f'    path_trace_add_entry_fast(trace, 0x{block.target()}, 1);\n')
+
+    def debug_flow_block_entry_hook(self, block, output):
+        output.write(f'    if(debug_flow) printf("{block.target()}\\n");\n')
+
+    def bbcount_block_entry_hook(self, block, output):
+        output.write(f'    {self.func_name}_bbcount_{block.target()}++;\n')
+
+    def invoke_block_entry_hooks(self, block, output):
+        self.path_trace_block_entry_hook(block, output)
+        self.bbcount_block_entry_hook(block, output)
+        self.debug_flow_block_entry_hook(block, output)
 
     def convert_block(self, block):
         if not hasattr(block, '_target'): return
 
         self.output.write(f'label_{block.target()}:\n')
-        if ('gen_path_info' in self.config):
-            self.output.write(f'    path_trace_add_entry_fast(trace, 0x{block.target()}, 1);\n')
-
-        self.output.write(f'    {self.func_name}_bbcount_{block.target()}++;\n')
-        self.output.write(f'    if(debug_flow) printf("{block.target()}\\n");\n')
+        self.invoke_block_entry_hooks(block, self.output)
 
         for i in block.code:
-            if not self.xlat_insn(i, self.func_name):
+            if not self.xlat_insn(i, self.func_name,
+                                  self.invoke_pre_hooks, self.invoke_post_hooks):
                 self.output.write(f"    // {i.label} {i.insn}\n")
-            else:
-                dbg_spec = []
-                dbg_args = []
-                for r in i.writes():
-                    if isinstance(r, SASSRegister):
-                        dbg_spec.append(f"{r.n}: %x ")
-                        dbg_args.append(r.n)
-
-                if len(dbg_spec):
-                    fmt_str = '"' + ''.join(dbg_spec) + '"'
-                    fmt_val = ", ".join(dbg_args)
-                    if i.predicate:
-                        debug_predicate = f"{i.predicate} && "
-                    else:
-                        debug_predicate = ""
-                    self.output.write(f'    if({debug_predicate}debug_output) printf("{i.label} " {fmt_str}"\\n", {fmt_val});\n')
 
         self.output.write("\n")
 
