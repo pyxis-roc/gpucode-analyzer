@@ -27,7 +27,7 @@ class TestInsnHook(InsnHook):
         i, a = self.gen.insns[self.gen._insn_count]
 
         for (m, r), a in zip(i.params, a):
-            if m == 'R' and (r[0] == 'R' or r[0] == 'U'):
+            if m in ('R', 'RW') and (r[0] == 'R' or r[0] == 'U'):
                 if r != 'RZ' and r!= 'URZ' and r != 'UPT':
                     output.write(f"{r} = {a};\n")
 

@@ -64,7 +64,7 @@ static uint32_t FROM_FLOAT(float f) {
 
 // TODO: nvbit doesn't seem to capture the right value
 // see also Incomprehensible IMAD post on the dev forums
-#define IMAD_HI_U32(dst, src1, src2, src3) dst = ((uint64_t) src1 * src2) >> 32 + src3
+#define IMAD_HI_U32(dst, src1, src2, src3) dst = (((uint64_t) src1 * src2) + ((uint64_t) dst << 32 | src3)) >> 32
 
 // TODO: FTZ, TRUNC, and NTZ
 #define F2I_FTZ_U32_TRUNC_NTZ(dst, src) dst = (uint32_t) NTZf(TRUNCf(FTZf(AS_FLOAT(src))))

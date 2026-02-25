@@ -121,6 +121,8 @@ class SASSInstruction(Instruction):
                     'LDG.E.128': {0: 4},
                     }
 
+    READ_WRITE = {'IMAD.HI.U32': {0}}
+
     def __init__(self, pc, pred, opcode, args, insn):
         self.label = pc
         self.predicate = pred
@@ -200,10 +202,12 @@ class SASSInstruction(Instruction):
         mw = self.MULTI_WRITER[self.opcode] if self.opcode in self.MULTI_WRITER else {}
 
         for k, a in enumerate(writes):
-            yield SASSOperand(a, write = True)
+            read = self.opcode in self.READ_WRITE and k in self.READ_WRITE[self.opcode]
+
+            yield SASSOperand(a, write = True, read = read)
             if k in mw:
                 for r in a.adjacent(mw[k] - 1):
-                    yield SASSOperand(r, write = True, implicit = True)
+                    yield SASSOperand(r, read = read, write = True, implicit = True)
 
         reads = self.args[write_args:]
         for a in reads:

@@ -225,7 +225,7 @@ class RawTrace:
                                         ))
                             ureg_ptr += 1
 
-                            if o.access() == 'W' and regs_written < insn_data.width:
+                            if o.is_write() and regs_written < insn_data.width:
                                for r in o.operand.adjacent(insn_data.width-1):
                                    out.append((o.access(), r,
                                                (lambda idx: lambda x: x.uregs[idx])(ureg_ptr)
@@ -236,7 +236,7 @@ class RawTrace:
                                         (lambda idx: lambda x: x.regs[idx])(reg_ptr)))
                             reg_ptr += 1
 
-                            if o.access() == 'W' and regs_written < insn_data.width:
+                            if o.is_write() and regs_written < insn_data.width:
                                for r in o.operand.adjacent(insn_data.width-1):
                                    out.append((o.access(), r,
                                                (lambda idx: lambda x: x.regs[idx])(reg_ptr)
@@ -282,14 +282,19 @@ class RawTrace:
             yield l
             if isinstance(l, KernelData):
                 state = {'RZ': 0, 'URZ': 0, 'PT': 1, 'UPT': 1}
+                kernel_threads = (lambda x: int(x[0])*int(x[1])*int(x[2]))(l.blockdim)
+                if kernel_threads > 32: kernel_threads = 32
 
             if isinstance(l, InsnData):
                 writes = []
                 for access, op, vals in self.annotate_insn_regs(l):
                     if access == 'W':
-                        writes.append((access, op, vals))
+                        writes.append((access, op, vals[:kernel_threads]))
                         continue
                     else:
+                        if access == 'RW':
+                            writes.append(('W', op, vals[:kernel_threads]))
+
                         if self.state_tracking and isinstance(op, SASSRegister):
                             if op.n != 'PR':
                                 if op.n not in state:
@@ -299,13 +304,15 @@ class RawTrace:
                                     vals = f"?uninit-{op.n}"
                                 else:
                                     vals = state.get(op.n)
+                                    if isinstance(vals, list): vals = vals[:kernel_threads]
 
-                    yield (access, get_reg_or_str(op), vals)
+                        yield (access, get_reg_or_str(op), vals)
+
 
                 for access, op, vals in writes:
                     yield (access, get_reg_or_str(op), vals)
                     if isinstance(op, SASSRegister) and not op.is_constant():
-                        state[op.n] = vals
+                        state[op.n] = vals[:kernel_threads]
                         writer[op.n] = l.op_idx
 
                         # TODO
