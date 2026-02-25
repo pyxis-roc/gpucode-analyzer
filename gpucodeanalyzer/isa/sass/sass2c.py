@@ -216,17 +216,6 @@ class SASS2C:
                         else:
                             self.output.write(f"    // unsupported: {x}\n")
 
-    def declare_counts(self):
-        for b in self.cfg.blocks:
-            try:
-                t = b.target()
-                if t in ('_start', '_exit'): continue
-                cv = f"{self.func_name}_bbcount_{t}"
-                self.output.write(f"    uint64_t {cv} = 0;\n")
-                self.counters.append(cv)
-            except ValueError:
-                pass
-
     def init_cfg(self, cfg, func_name):
         self.cfg = cfg
         self.func_name = func_name
