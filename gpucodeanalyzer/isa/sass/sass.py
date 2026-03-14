@@ -306,8 +306,13 @@ class SASSControlInsn(SASSInstruction, ControlInsn):
         if self.opcode == "EXIT":
             return "_exit"
         else:
-            if self.args[0].startswith('0x'):
-                tgt = self.args[0][2:]
+            addr_arg = 0
+            if self.opcode == "BRA.U":
+                addr_arg = 1 # BRA.U !UP0, addr
+
+            assert isinstance(self.args[addr_arg], str), f"{self.opcode} {self.args[addr_arg]}"
+            if self.args[addr_arg].startswith('0x'):
+                tgt = self.args[addr_arg][2:]
                 if len(tgt) < 4:
                     tgt = "0"*(4 - len(tgt)) + tgt
                 return tgt
@@ -315,7 +320,7 @@ class SASSControlInsn(SASSInstruction, ControlInsn):
                 return self.args[0]
 
     def is_conditional(self):
-        return self.predicate is not None
+        return self.predicate is not None or self.opcode == "BRA.U"
 
 class SASSFile:
     SASS_CONTROL_INSN = re.compile("EXIT|BRA|CALL.REL.NOINC")
