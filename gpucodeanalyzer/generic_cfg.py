@@ -2,6 +2,7 @@
 
 class Instruction:
     label = None
+    opcode = None
 
     def targets(self):
         if self.is_control():
