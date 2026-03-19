@@ -19,6 +19,12 @@ class Instruction:
 
 
 class ControlInsn(Instruction):
+    indirect_targets = None
+
+    def targets(self):
+        """Return multiple target pcs"""
+        raise NotImplementedError
+
     def target(self):
         """Returns pc of target"""
         raise NotImplementedError
@@ -97,6 +103,13 @@ class BasicBlock:
     def add_predecessor(self, bb):
         self.predecessors[bb.name] = bb
 
+    def remove_successor(self, label):
+        self.successors[label].remove_predecessor(self)
+        del self.successors[label]
+
+    def remove_predecessor(self, bb):
+        del self.predecessors[bb.name]
+
     def _mark_as_predecessor(self):
         # must be called once all successors have been added
 
@@ -157,6 +170,7 @@ class CFG:
         starts = set()
         ends = set()
         next_is_start = False
+        indirects = set()
 
         for i in self.codefile.code:
             if next_is_start:
@@ -166,6 +180,10 @@ class CFG:
             if i.is_control():
                 ends.add(i.label)
                 starts.add(i.target())
+
+                if i.is_indirect():
+                    indirects.add(i.label)
+
                 next_is_start = True
 
         bbndx = 0
@@ -203,8 +221,51 @@ class CFG:
         for bb in self.blocks:
             bb._mark_as_predecessor()
 
+        if len(indirects):
+            self.codefile.resolve_indirects(self, indirects)
 
         self.check_consistency()
+
+    def update_indirects(self, indirects):
+        for label, addr in indirects.items():
+            for a in addr:
+                if a not in self.labels_to_blocks:
+                    print(f"Address {a} not found as a basic block. NotYetImplemented, splitting blocks")
+                    raise NotImplementedError
+
+        changed = False
+        for bb in self.blocks:
+            if len(bb.code) == 0: continue
+            last_insn = bb.code[-1]
+            if last_insn.is_control() and last_insn.is_indirect():
+                if last_insn.label in indirects:
+                    cur_targets = set(last_insn.targets())
+                    res_targets = set(indirects[last_insn.label])
+                    new_targets = res_targets - cur_targets
+                    if len(new_targets):
+                        changed = True
+                        k = len(cur_targets)
+                        for r in new_targets:
+                            bb.add_successor(f'indirect{k}', self.labels_to_blocks[r])
+                            k = k + 1
+
+                        bb._mark_as_predecessor()
+
+                        if last_insn.indirect_targets is None:
+                            last_insn.indirect_targets = new_targets
+                        else:
+                            last_insn.indirect_targets.extend(new_targets)
+
+                        current_targets = set(last_insn.indirect_targets)
+                        remove = []
+                        for s in bb.successors:
+                            if bb.successors[s].target() not in current_targets:
+                                remove.append(s)
+
+                        for rs in remove:
+                            bb.remove_successor(rs)
+
+
 
     def check_consistency(self):
         for b in self.blocks:

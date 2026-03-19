@@ -1,17 +1,19 @@
 import re
 from ...generic_cfg import Instruction, ControlInsn, Register, Memory, Operand
+from ...def_use import DefUseAnalysis
 
 # assemblies extracted from nvuc files are "bare" with no function name and have one function.
 # assemblies dumped from cuobjdump usually have function name information and are multiple functions.
 
 SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;(\s*/\* 0x([0-9a-f]+) \*/)?$")
-SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B[123]|\.H0_H0)?)|(UPT|PR|PT|-?RZ|URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
+SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B[123]|\.H0_H0)?)|(UPR|UPT|PR|PT|-?RZ|URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
 SASS_ADDR_RE = re.compile(r"\[(?P<reg1>R[0-9Z]+)(\.(?P<suff>U32|X16))?(\+(?P<reg2>UR[0-9Z]+)|(?P<imm>0x.+))?\]")
 
 CX_RE = re.compile(r"-?cx\[(?P<regbase>.+)\]\[(?P<offset>.+)\]")
 
 CONSTANT_REGS = set(['RZ', 'SRZ', 'URZ', 'PT', 'UPT', 'SR_TID.X', 'SR_CTAID.X',
-                     'SR_TID.Y', 'SR_TID.Z', 'SR_CTAID.Y', 'SR_CTAID.Z'])
+                     'SR_TID.Y', 'SR_TID.Z', 'SR_CTAID.Y', 'SR_CTAID.Z',
+                     'UPR']) # ?? need to think about this, since PR would be here too?
 
 REG_NUMBER = re.compile(r'(?P<prefix>[^0-9]+)(?P<num>\d+|T)$')
 PT_NUM = 7
@@ -65,6 +67,8 @@ class SASSRegister(Register):
     def number(self):
         if self.n == "PR":
             return PR_NUM
+        elif self.n == "UPR":
+            raise NotImplementedError
 
         m = REG_NUMBER.search(self.n)
         assert m is not None, self.n
@@ -114,7 +118,8 @@ class SASSInstruction(Instruction):
                    ('IADD3', 6): 3,
                    ('LOP3.LUT', 7): 2,
                    ('UIADD3', 6): 3,
-                   'RET.REL.NODEC': 0
+                   'RET.REL.NODEC': 0,
+                   ('BRA.U', 2): 0 # for the BRA.U UP1, 0x... form
                    }
 
     # writes to multiple registers implicitly
@@ -149,6 +154,9 @@ class SASSInstruction(Instruction):
                 is_inverted = False
                 is_negated = False
                 is_reuse = False
+
+                if a.endswith(" 0x0"):
+                    a = a[:-len(" 0x0")] # RET.REL.NODEC R4 0x0 ;
 
                 if a[0] == "!":
                     a = a[1:]
@@ -231,14 +239,14 @@ class SASSInstruction(Instruction):
         for a in reads:
             yield SASSOperand(a, read = True)
 
-    def _decode_predset_imm(self, regset):
+    def _decode_predset_imm(self, regset, uniform = ""):
         rs = int(regset, 16)
         assert rs < 256, rs
 
         out = []
         for i in range(8):
             if (rs & 1):
-                out.append(SASSRegister(f"P{i}"))
+                out.append(SASSRegister(f"{uniform}P{i}"))
 
             rs >>= 1
             if rs == 0: break
@@ -266,6 +274,9 @@ class SASSInstruction(Instruction):
 
         if self.opcode == "P2R":
             rds.extend(self._decode_predset_imm(self.args[-1]))
+        elif self.opcode == "UP2UR":
+            assert isinstance(self.args[1], Register) and self.args[1].n == "UPR"
+            rds.extend(self._decode_predset_imm(self.args[-1], uniform="U"))
 
         for x in self.args[write_args:]:
             if isinstance(x, SASSAddress):
@@ -320,9 +331,21 @@ class SASSInstruction(Instruction):
         return (predicate, opcode, args)
 
 class SASSControlInsn(SASSInstruction, ControlInsn):
+    def targets(self):
+        # TODO: at some point handle conditional branches as well
+        if self.indirect_targets is None:
+            return [self.target()]
+        else:
+            return self.indirect_targets
+
     def target(self):
         if self.opcode == "EXIT":
             return "_exit"
+        elif self.opcode == "RET.REL.NODEC":
+            if self.indirect_targets is None:
+                return "_exit" # for now
+            else:
+                raise ValueError # must call targets
         else:
             addr_arg = 0
             if self.opcode == "BRA.U":
@@ -342,10 +365,52 @@ class SASSControlInsn(SASSInstruction, ControlInsn):
                 return self.args[0]
 
     def is_conditional(self):
-        return self.predicate is not None or self.opcode == "BRA.U"
+        return (self.predicate is not None) or (self.opcode == "BRA.U" and isinstance(self.args[0], Register))
+
+    def is_indirect(self):
+        return self.opcode == "RET.REL.NODEC"
+
+
+class SASSIndirectResolver:
+    def __init__(self, cfg, indirects):
+        self.cfg = cfg
+        self.indirects = indirects
+        self.instructions = dict([(i.label, i) for i in self.cfg.all_instructions()])
+
+    def resolve(self):
+        self.da = DefUseAnalysis(self.cfg)
+        self.da.build_definitions()
+        self.da.reaching_defns(quiet = True)
+
+        iaddr = {}
+        for i in self.indirects:
+            iaddr[i] = self.resolve_indirect(i)
+            insn = self.instructions[i]
+
+        return self.cfg.update_indirects(iaddr)
+
+    def resolve_indirect(self, indirect):
+        chain = [self.instructions[indirect]]
+        k = 0
+        while k < len(chain):
+            for r in self.da.rdefs[chain[k].label]:
+                chain.append(self.instructions[r[1]])
+
+            k = k + 1
+
+        addresses = []
+        for i in chain:
+            assert i.opcode in {'RET.REL.NODEC', 'MOV'}, f"{i.opcode} {chain}"
+            if i.opcode == 'MOV' and isinstance(i.args[1], str) and i.args[1].startswith('0x'):
+                addr = i.args[1][2:]
+                assert addr in self.instructions, f"{i} does not contain a valid address {addr}"
+                addresses.append(addr)
+
+        return addresses
+
 
 class SASSFile:
-    SASS_CONTROL_INSN = re.compile("EXIT|BRA|CALL.REL.NOINC")
+    SASS_CONTROL_INSN = re.compile("EXIT|BRA|CALL.REL.NOINC|RET.REL.NODEC")
 
     def __init__(self, f):
         self.f = f
@@ -373,6 +438,14 @@ class SASSFile:
             return i
 
         return None
+
+    def resolve_indirects(self, cfg, indirects):
+        if len(indirects) == 0: return
+
+        changed = True
+        while changed:
+            ir = SASSIndirectResolver(cfg, indirects)
+            changed = ir.resolve()
 
     def dump(self):
         for i in self.code:

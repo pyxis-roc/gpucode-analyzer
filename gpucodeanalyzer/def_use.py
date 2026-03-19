@@ -32,7 +32,7 @@ class DefUseAnalysis:
         self.defns_i2n = defs_i2n
 
 
-    def reaching_defns(self):
+    def reaching_defns(self, quiet = False):
         def get_predecessor_rd(n, b):
             if n == 0:
                 # first instruction in block, look at predecessors of block
@@ -92,8 +92,9 @@ class DefUseAnalysis:
                 rsub = [self.defns_n2ri[d] for d in reaching]
                 rsub = [x for x in rsub if x[0] in reads]
 
-                if len(reads) != len(set([x[0] for x in rsub])):
-                    print("*** MISSING DEFNS ***", i.label, reads, rsub)
+                if not quiet:
+                    if len(reads) != len(set([x[0] for x in rsub])):
+                        print("*** MISSING DEFNS ***", i.label, reads, rsub)
 
                 rdefs[i.label] = rsub
 
