@@ -18,13 +18,14 @@ PT_NUM = 7
 PR_NUM = 8
 
 class SASSRegister(Register):
-    def __init__(self, n, is_inverted = False, is_negated = False, is_reuse = False):
+    def __init__(self, n, is_inverted = False, is_negated = False, is_reuse = False, suffix = None):
         super().__init__(n)
 
         # todo: reuse, !, .cc
         self.is_inverted = is_inverted
         self.is_negated = is_negated
         self.is_reuse = is_reuse
+        self.suffix = suffix
 
     def is_constant(self):
         return self.n in CONSTANT_REGS
@@ -49,6 +50,9 @@ class SASSRegister(Register):
 
         if reuse and self.is_reuse:
             n = n + ".reuse"
+
+        if self.suffix:
+            n = n + suffix
 
         if self.is_inverted:
             return "!" + n
@@ -104,11 +108,16 @@ class SASSOperand(Operand):
     pass
 
 class SASSInstruction(Instruction):
+    # has multiple explicit write registers
     WRITE_COUNT = {'BSYNC': 0,
                    ('IADD3', 5): 2,
                    ('IADD3', 6): 3,
-                   ('LOP3.LUT', 7): 2}
+                   ('LOP3.LUT', 7): 2,
+                   ('UIADD3', 6): 3,
+                   'RET.REL.NODEC': 0
+                   }
 
+    # writes to multiple registers implicitly
     MULTI_WRITER = {'LDG.E.128.STRONG.GPU': {0: 4},
                     'LDG.E.128.CONSTANT': {0: 4},
                     'LDG.E.LTC128B.CONSTANT': {0: 4},
@@ -119,6 +128,8 @@ class SASSInstruction(Instruction):
                     'LDSM.16.MT88.4': {0: 4},
                     'LDS.128': {0: 4},
                     'LDG.E.128': {0: 4},
+                    'LDCU.64': {0: 2},
+                    'FMUL2.FTZ.RZ': {0: 2},
                     }
 
     READ_WRITE = {'IMAD.HI.U32': {0}}
@@ -147,21 +158,28 @@ class SASSInstruction(Instruction):
                     a = a[1:]
                     is_negated = True
 
-                if a.endswith(".reuse"):
-                    a = a[:-len(".reuse")]
-                    is_reuse = True
+                suffix = []
+                reg_suffixes = [".reuse", ".B1", ".B2", ".B3", ".H0_H0",
+                                ".H1", ".HI_LO", ".F32", ".F32x2"]
+                while True:
+                    for rs in reg_suffixes:
+                        if a.endswith(rs):
+                            a = a[:-len(rs)]
+                            suffix.append(rs)
+                            if rs == ".reuse":
+                                is_reuse = True
+                            break
+                    else:
+                        break
 
-                if a.endswith(".B1") or a.endswith(".B2") or a.endswith(".B3"):
-                    a = a[:-len(".B1")]
-                    # unknown
-
-                if a.endswith(".H0_H0"):
-                    a = a[:-len(".H0_H0")]
-                    # TODO
+                suffix = "".join(reversed(suffix))
+                if len(suffix) == 0:
+                    suffix = None
 
                 r = SASSRegister(a, is_inverted = is_inverted,
                                  is_negated = is_negated,
-                                 is_reuse = is_reuse)
+                                 is_reuse = is_reuse,
+                                 suffix = suffix)
 
                 out.append(r)
             else:
@@ -309,8 +327,12 @@ class SASSControlInsn(SASSInstruction, ControlInsn):
             addr_arg = 0
             if self.opcode == "BRA.U":
                 addr_arg = 1 # BRA.U !UP0, addr
+            elif self.opcode == "BRA":
+                if isinstance(self.args[0], SASSRegister):
+                    # on CC 10.0: @!P1 BRA !P2, 0xe8a0
+                    addr_arg = 1
 
-            assert isinstance(self.args[addr_arg], str), f"{self.opcode} {self.args[addr_arg]}"
+            assert isinstance(self.args[addr_arg], str), f"Expecting address: {self.opcode} {self.args[addr_arg]} {addr_arg}"
             if self.args[addr_arg].startswith('0x'):
                 tgt = self.args[addr_arg][2:]
                 if len(tgt) < 4:
