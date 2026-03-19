@@ -31,10 +31,10 @@ class Slicer(Skeletonizer):
             for b in self.cfg.blocks:
                 for c in b.code:
                     if c.label in self.important:
-                        addresses |= _get_important_cdeps(b)
-                        break
+                        new_addr = _get_important_cdeps(b)
+                        addresses |= new_addr
 
-            change = len(addresses) == 0
+            change = not (len(addresses) == 0)
             self.important |= self._mark_important(addresses)
             addresses = set()
 
