@@ -10,6 +10,7 @@ SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B[123]|\.H0_H0)?)
 SASS_ADDR_RE = re.compile(r"\[(?P<reg1>R[0-9Z]+)(\.(?P<suff>U32|X16))?(\+(?P<reg2>UR[0-9Z]+)|(?P<imm>0x.+))?\]")
 
 CX_RE = re.compile(r"-?cx\[(?P<regbase>.+)\]\[(?P<offset>.+)\]")
+C_RE = re.compile(r"-?c\[(?P<bank>.+)\]\[(?P<regoffset>R.+)\]")
 
 CONSTANT_REGS = set(['RZ', 'SRZ', 'URZ', 'PT', 'UPT', 'SR_TID.X', 'SR_CTAID.X',
                      'SR_TID.Y', 'SR_TID.Z', 'SR_CTAID.Y', 'SR_CTAID.Z',
@@ -119,7 +120,8 @@ class SASSInstruction(Instruction):
                    ('LOP3.LUT', 7): 2,
                    ('UIADD3', 6): 3,
                    'RET.REL.NODEC': 0,
-                   ('BRA.U', 2): 0 # for the BRA.U UP1, 0x... form
+                   ('BRA.U', 2): 0, # for the BRA.U UP1, 0x... form
+                   'BRX': 0
                    }
 
     # writes to multiple registers implicitly
@@ -129,6 +131,7 @@ class SASSInstruction(Instruction):
                     'ULDC.64': {0: 2},
                     'HMMA.16816.F32': {0: 4},
                     'IMAD.WIDE.U32': {0: 2},
+                    'UIMAD.WIDE.U32': {0: 2},
                     'IMAD.WIDE': {0: 2},
                     'LDSM.16.MT88.4': {0: 4},
                     'LDS.128': {0: 4},
@@ -156,8 +159,9 @@ class SASSInstruction(Instruction):
                 is_negated = False
                 is_reuse = False
 
-                if a.endswith(" 0x0"):
-                    a = a[:-len(" 0x0")] # RET.REL.NODEC R4 0x0 ;
+                if " " in a:
+                    a = a.split()[0]
+                    #a = a[:-len(" 0x0")] # RET.REL.NODEC R4 0x0 ; BRX, etc.
 
                 if a[0] == "!":
                     a = a[1:]
@@ -272,6 +276,10 @@ class SASSInstruction(Instruction):
                 cxm = CX_RE.match(x)
                 if cxm:
                     rds.append(SASSRegister(cxm.group('regbase')))
+                else:
+                    cm = C_RE.match(x)
+                    if cm:
+                        rds.append(SASSRegister(cm.group('regoffset')))
 
         if self.opcode == "P2R":
             rds.extend(self._decode_predset_imm(self.args[-1]))
