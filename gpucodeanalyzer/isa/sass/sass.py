@@ -213,6 +213,9 @@ class SASSInstruction(Instruction):
 
     __repr__ = __str__
 
+    def code(self):
+        return f"/*{self.label}*/ {self.insn} ;"
+
     def predicated(self):
         return self.predicate is not None
 

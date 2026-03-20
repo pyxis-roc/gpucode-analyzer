@@ -65,6 +65,8 @@ def main():
     p.add_argument("asmfile")
     p.add_argument("-m", dest="metadata", help="Metadata file")
     p.add_argument("-o", dest="outputdot", help="Output skeleton in DOT format", default="slice.dot")
+    p.add_argument("-c", dest="outputcode", help="Output skeleton as text format")
+
     p.add_argument("labels_or_re", nargs="+", help="Instruction labels or regular expressions")
 
 
@@ -91,6 +93,11 @@ def main():
     with open(args.outputdot, "w") as f:
         sk_cfg.dump_dot(f)
         print(f"Written output to {args.outputdot}")
+
+    if args.outputcode:
+        with open(args.outputcode, "w") as f:
+            sk_cfg.dump_code(f)
+            print(f"Written code to {args.outputcode}")
 
 if __name__ == "__main__":
     main()

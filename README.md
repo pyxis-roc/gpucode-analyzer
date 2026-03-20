@@ -17,28 +17,43 @@ pip install -e .
 
 ### buildcfg
 
-Run `buildcfg` to obtain a control flow graph as a DOT file.
+Run `gca-buildcfg` to obtain a control flow graph as a DOT file.
 
 ### skelcfg
 
-Run `skelcfg` to obtain a skeletonized control-flow graph as a DOT file.
+Run `gca-skelcfg` to obtain a skeletonized control-flow graph as a DOT file.
+
+### slice
+
+Run `gca-slicecfg` to obtain a sliced control-flow graph as a DOT
+file. Unlike `gca-skelcfg`, this allows you to specify instructions to
+mark as important either using their addresses/labels or a regular
+expression matching the opcode. Example:
+
+```
+gca-skelcfg test.sass re:WARPSYNC 00ab
+```
+
+You can use `-o` to obtain a DOT file, and `-c` to obtain a text file
+of the code.
+
 
 ### classcfg
 
-Run `classcfg` to obtain the classification of each instruction, as
+Run `gca-classcfg` to obtain the classification of each instruction, as
 well as a static summary count.
 
 ### cfg2c
 
-Run `cfg2c` to convert CFG to its skeleton and then to C. This is an
+Run `gca-cfg2c` to convert CFG to its skeleton and then to C. This is an
 experimental tool not meant for general use. It only works for SASS
 files. It outputs a C file which when run will output a basic block
 count.
 
 ## bbcount
 
-Run `bbcount` with the source code and the basic block count to obtain
-the the frequency of each instruction. A count of generic operations
+Run `gca-bbcount` with the source code and the basic block count to obtain
+the frequency of each instruction. A count of generic operations
 is also provided.
 
 

@@ -17,6 +17,8 @@ class Instruction:
     def writes(self):
         raise NotImplementedError
 
+    def code(self):
+        raise NotImplementedError
 
 class ControlInsn(Instruction):
     indirect_targets = None
@@ -277,6 +279,12 @@ class CFG:
     def dump(self):
         for b in self.blocks:
             print(b)
+
+    def dump_code(self, output):
+        for b in self.blocks:
+            print(f">>> {b.target()}", file=output)
+            for i in b.code:
+                print(i.code(), file=output)
 
     def dump_dot(self, output, code=True, xinsn=lambda i: i.insn, count=False):
         print("digraph {", file=output)
