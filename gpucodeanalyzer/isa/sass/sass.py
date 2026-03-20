@@ -458,7 +458,7 @@ class SASSFile:
                 assert self.metadata is not None, 'Code contains BRX and metadata about indirect branches must be provided'
                 assert len(self.metadata) == 1, f"Multiple functions present, but function name is unknown"
                 fn_name = list(self.metadata.keys())[0]
-                brx = self.metadata[fn_name].get('brx', {})
+                brx = self.metadata[fn_name].get('EIATTR_INDIRECT_BRANCH_TARGETS', {})
                 assert i.label in brx, f'No indirect targets for {i.label} found'
                 i.indirect_targets = brx[i.label]
 
