@@ -179,7 +179,8 @@ class CFG:
 
             if i.is_control():
                 ends.add(i.label)
-                starts.add(i.target())
+                for tgt in i.targets():
+                    starts.add(tgt)
 
                 if i.is_indirect():
                     indirects.add(i.label)
@@ -209,13 +210,11 @@ class CFG:
             if len(bb.code) == 0: continue
             last_insn = bb.code[-1]
             if last_insn.is_control():
-                target = last_insn.target()
-                if last_insn.is_conditional():
-                    bb.add_successor('true',
-                                     self.labels_to_blocks[target])
-                else:
-                    bb.add_successor('next',
-                                     self.labels_to_blocks[target])
+                targets = last_insn.targets()
+                succlabel = 'true' if last_insn.is_conditional() else 'next'
+                for tgt, tgtndx in zip(targets, [""] + list(range(1, len(targets)))):
+                    bb.add_successor(f'{succlabel}{tgtndx}',
+                                     self.labels_to_blocks[tgt])
 
         # populate predecessors
         for bb in self.blocks:

@@ -135,6 +135,7 @@ class SASSInstruction(Instruction):
                     'LDG.E.128': {0: 4},
                     'LDCU.64': {0: 2},
                     'FMUL2.FTZ.RZ': {0: 2},
+                    'LDTM.x32': {0: 32}
                     }
 
     READ_WRITE = {'IMAD.HI.U32': {0}}
@@ -345,7 +346,13 @@ class SASSControlInsn(SASSInstruction, ControlInsn):
             if self.indirect_targets is None:
                 return "_exit" # for now
             else:
-                raise ValueError # must call targets
+                raise ValueError # must call targets()
+        elif self.opcode == "BRX":
+            if self.indirect_targets is None:
+                # metadata must set this
+                raise NotImplementedError
+            else:
+                raise ValueError # must call targets()
         else:
             addr_arg = 0
             if self.opcode == "BRA.U":
@@ -368,7 +375,7 @@ class SASSControlInsn(SASSInstruction, ControlInsn):
         return (self.predicate is not None) or (self.opcode == "BRA.U" and isinstance(self.args[0], Register))
 
     def is_indirect(self):
-        return self.opcode == "RET.REL.NODEC"
+        return self.opcode == "RET.REL.NODEC" or self.opcode == "BRX"
 
 
 class SASSIndirectResolver:
@@ -390,6 +397,9 @@ class SASSIndirectResolver:
         return self.cfg.update_indirects(iaddr)
 
     def resolve_indirect(self, indirect):
+        if self.instructions[indirect].opcode == 'BRX':
+            return self.instructions[indirect].indirect_targets
+
         chain = [self.instructions[indirect]]
         k = 0
         while k < len(chain):
@@ -410,11 +420,12 @@ class SASSIndirectResolver:
 
 
 class SASSFile:
-    SASS_CONTROL_INSN = re.compile("EXIT|BRA|CALL.REL.NOINC|RET.REL.NODEC")
+    SASS_CONTROL_INSN = re.compile("EXIT|BRA|CALL.REL.NOINC|RET.REL.NODEC|BRX")
 
-    def __init__(self, f):
+    def __init__(self, f, metadata = None):
         self.f = f
         self.code = []
+        self.metadata = metadata
         self._parse(f)
 
     def _parse(self, sassfile):
@@ -434,6 +445,14 @@ class SASSFile:
                 i = SASSControlInsn(pc, pred, o, a, m.group(2))
             else:
                 i = SASSInstruction(pc, pred, o, a, m.group(2))
+
+            if i.is_control() and i.is_indirect() and i.opcode == "BRX":
+                assert self.metadata is not None, 'Code contains BRX and metadata about indirect branches must be provided'
+                assert len(self.metadata) == 1, f"Multiple functions present, but function name is unknown"
+                fn_name = list(self.metadata.keys())[0]
+                brx = self.metadata[fn_name].get('brx', {})
+                assert i.label in brx, f'No indirect targets for {i.label} found'
+                i.indirect_targets = brx[i.label]
 
             return i
 

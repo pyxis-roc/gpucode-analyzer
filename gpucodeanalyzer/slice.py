@@ -3,6 +3,7 @@ from .def_use import DefUseAnalysis
 from .skeletonizer import Skeletonizer
 from .analyses.dom import Dominators
 import re
+import json
 
 class Slicer(Skeletonizer):
     def slice(self, addresses):
@@ -60,16 +61,23 @@ def main():
     from gpucodeanalyzer.isa.loader import get_dispatcher
     import argparse
 
-    p = argparse.ArgumentParser(description="Classify instructions generically")
+    p = argparse.ArgumentParser(description="Slice a CFG")
     p.add_argument("asmfile")
+    p.add_argument("-m", dest="metadata", help="Metadata file")
     p.add_argument("-o", dest="outputdot", help="Output skeleton in DOT format", default="slice.dot")
     p.add_argument("labels_or_re", nargs="+", help="Instruction labels or regular expressions")
 
 
     args = p.parse_args()
 
+    if args.metadata:
+        with open(args.metadata, "r") as f:
+            metadata = json.load(f)
+    else:
+        metadata = None
+
     disp = get_dispatcher(args.asmfile)
-    code = disp.loader()(args.asmfile)
+    code = disp.loader()(args.asmfile, metadata=metadata)
     classifier = disp.classifier()()
 
     cfg = CFG(code)

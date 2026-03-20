@@ -10,7 +10,7 @@ def parse_reginfo(sass_insn_match):
     fields = regs.split("|")
 
     reg_prefixes = ['R', 'P', 'UR', 'UP']
-    print(insn)
+    print(sass_insn_match.group(1), insn)
     for i, f in enumerate(fields):
         usage = PLR_FORMAT_NARROW.match(f)
         if usage is None:
