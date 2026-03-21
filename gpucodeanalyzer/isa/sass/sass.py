@@ -6,19 +6,22 @@ from ...def_use import DefUseAnalysis
 # assemblies dumped from cuobjdump usually have function name information and are multiple functions.
 
 SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;(\s*/\* 0x([0-9a-f]+) \*/)?$")
-SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B[123]|\.H0_H0)?)|(UPR|UPT|PR|PT|-?RZ|URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
+SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B[123]|\.H0_H0|\.H1_H1)?)|(UPR|UPT|PR|PT|-?RZ|URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
 SASS_ADDR_RE = re.compile(r"\[(?P<reg1>R[0-9Z]+)(\.(?P<suff>U32|X16))?(\+(?P<reg2>UR[0-9Z]+)|(?P<imm>0x.+))?\]")
 
 CX_RE = re.compile(r"-?cx\[(?P<regbase>.+)\]\[(?P<offset>.+)\]")
 C_RE = re.compile(r"-?c\[(?P<bank>.+)\]\[(?P<regoffset>R.+)\]")
 
 CONSTANT_REGS = set(['RZ', 'SRZ', 'URZ', 'PT', 'UPT', 'SR_TID.X', 'SR_CTAID.X',
-                     'SR_TID.Y', 'SR_TID.Z', 'SR_CTAID.Y', 'SR_CTAID.Z',
-                     'UPR']) # ?? need to think about this, since PR would be here too?
+                     'SR_TID.Y', 'SR_TID.Z', 'SR_CTAID.Y', 'SR_CTAID.Z'
+                     ])
 
 REG_NUMBER = re.compile(r'(?P<prefix>[^0-9]+)(?P<num>\d+|T)$')
 PT_NUM = 7
 PR_NUM = 8
+
+FUNCTION_BEGIN_RE = re.compile(r"\s+Function : (.*)$")
+FUNCTION_END_RE = re.compile(r"\s+\.\.\.\.\.\.\.\.\.\.$")
 
 class SASSRegister(Register):
     def __init__(self, n, is_inverted = False, is_negated = False, is_reuse = False, suffix = None):
@@ -440,13 +443,58 @@ class SASSFile:
         self._parse(f)
 
     def _parse(self, sassfile):
+        state = 'out'
+        code = []
+        codes = {}
+        ff = None
+        function = None
         with open(sassfile, "r") as f:
-            self.code = list(filter(None, (self._mkinsn(l) for l in f)))
+            for l in f:
+                if state == 'out':
+                    m = FUNCTION_BEGIN_RE.match(l)
+                    if m:
+                        state = 'in'
+                        function = m.group(1)
+                        ff = ff or function
+                        continue
 
-        if len(self.code) == 0:
-            print(f"WARNING:sass: No instructions matched regexp in {sassfile}")
+                    insn = self._mkinsn(l, function)
+                    if insn is not None:
+                        function = None
+                        state == 'in'
+                        code.append(insn)
+                        continue
+                elif state == 'in':
+                    insn = self._mkinsn(l, function)
+                    if insn is None:
+                        m = FUNCTION_END_RE.match(l)
+                        if m:
+                            codes[function] = code
+                            function = None
+                            code = []
+                            state = 'out'
+                    else:
+                        code.append(insn)
 
-    def _mkinsn(self, sassinsn):
+        if len(code):
+            if len(codes) == 0:
+                # old view
+                self.code = code
+            else:
+                # missed ending?
+                assert function is not None
+                codes[function] = code
+                function = None
+                code = []
+
+        if len(codes):
+            self.codes = codes
+            self.code = codes[ff]
+
+        if len(self.code) == 0 or len(self.codes) == 0:
+            print(f"WARNING:sass: No instructions matched in {sassfile}")
+
+    def _mkinsn(self, sassinsn, fn_name = None):
         m = SASS_INSN_RE.match(sassinsn)
         if m:
             pc = m.group(1)
@@ -459,8 +507,7 @@ class SASSFile:
 
             if i.is_control() and i.is_indirect() and i.opcode == "BRX":
                 assert self.metadata is not None, 'Code contains BRX and metadata about indirect branches must be provided'
-                assert len(self.metadata) == 1, f"Multiple functions present, but function name is unknown"
-                fn_name = list(self.metadata.keys())[0]
+                assert fn_name is not None, f'Multiple functions present, but current function unknown'
                 brx = self.metadata[fn_name].get('EIATTR_INDIRECT_BRANCH_TARGETS', {})
                 assert i.label in brx, f'No indirect targets for {i.label} found'
                 i.indirect_targets = brx[i.label]

@@ -54,6 +54,9 @@ def get_labels(cfg, labels_or_re):
         if any(r.match(i.opcode) for r in res):
             labels.add(i.label)
 
+    if len(labels) == 0:
+        print("WARNING: no labels matched. Slice will be empty.")
+
     return labels
 
 def main():
@@ -67,6 +70,7 @@ def main():
     p.add_argument("-o", dest="outputdot", help="Output skeleton in DOT format", default="slice.dot")
     p.add_argument("-c", dest="outputcode", help="Output skeleton as text format")
 
+    p.add_argument("--fn", help="Function to slice (if multiple)")
     p.add_argument("labels_or_re", nargs="+", help="Instruction labels or regular expressions")
 
 
@@ -82,7 +86,7 @@ def main():
     code = disp.loader()(args.asmfile, metadata=metadata)
     classifier = disp.classifier()()
 
-    cfg = CFG(code)
+    cfg = CFG(code, args.fn)
     cfg.build()
 
     sk = Slicer(cfg)

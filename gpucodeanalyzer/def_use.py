@@ -107,10 +107,11 @@ def test():
 
     p = argparse.ArgumentParser(description="Process SASS file")
     p.add_argument("sassfile")
+    p.add_argument("--fn", help="Function")
     args = p.parse_args()
 
     code = SASSFile(args.sassfile)
-    cfg = CFG(code)
+    cfg = CFG(code, args.fn)
     cfg.build()
     da = DefUseAnalysis(cfg)
     da.build_definitions()
