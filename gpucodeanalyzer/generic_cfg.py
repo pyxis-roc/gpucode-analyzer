@@ -142,8 +142,9 @@ class BasicBlock:
             raise ValueError
 
 class CFG:
-    def __init__(self, codefile):
+    def __init__(self, codefile, fn_name = None):
         self.codefile = codefile
+        self.fn_name = fn_name
         self.blocks = [BasicBlock('_start', []), BasicBlock('_exit', [])]
         self.labels_to_blocks = {'_start': self.blocks[0],
                                  '_exit': self.blocks[1]}
@@ -174,7 +175,12 @@ class CFG:
         next_is_start = False
         indirects = set()
 
-        for i in self.codefile.code:
+        if self.fn_name:
+            code = self.codefile.codes[self.fn_name]
+        else:
+            code = self.codefile.code
+
+        for i in code:
             if next_is_start:
                 starts.add(i.label)
                 next_is_start = False
@@ -192,7 +198,7 @@ class CFG:
         bbndx = 0
         last_bb = self.labels_to_blocks['_start']
         current = []
-        for i in self.codefile.code:
+        for i in code:
             if i.label in starts:
                 if len(current):
                     current, bbndx, last_bb = add_bb(current, bbndx, last_bb)
@@ -303,7 +309,7 @@ class CFG:
         print("}", file=output)
 
     def copy(self):
-        x = CFG(self.codefile)
+        x = CFG(self.codefile, self.fn_name)
         x.blocks = list([b.copy() for b in self.blocks])
 
         l2b = {}
@@ -321,8 +327,9 @@ class CFG:
 
         return x
 
-    def convert(self, converter, func_name): # todo: make func_name a part of cfg
-        converter.init_cfg(self, func_name)
+    def convert(self, converter, func_name = None):
+        assert (func_name or self.fn_name) is not None, f'Needs a function name'
+        converter.init_cfg(self, func_name or self.fn_name)
         block_order = converter.output_block_order()
 
         for b in block_order:
