@@ -120,11 +120,13 @@ class SASSInstruction(Instruction):
     WRITE_COUNT = {'BSYNC': 0,
                    ('IADD3', 5): 2,
                    ('IADD3', 6): 3,
+                   ('UIADD3', 5): 2,
                    ('LOP3.LUT', 7): 2,
                    ('UIADD3', 6): 3,
                    'RET.REL.NODEC': 0,
                    ('BRA.U', 2): 0, # for the BRA.U UP1, 0x... form
-                   'BRX': 0
+                   'BRX': 0,
+                   'ELECT': 2
                    }
 
     # writes to multiple registers implicitly
@@ -132,16 +134,26 @@ class SASSInstruction(Instruction):
                     'LDG.E.128.CONSTANT': {0: 4},
                     'LDG.E.LTC128B.CONSTANT': {0: 4},
                     'ULDC.64': {0: 2},
+                    'LDC.64': {0: 2},
                     'HMMA.16816.F32': {0: 4},
                     'IMAD.WIDE.U32': {0: 2},
                     'UIMAD.WIDE.U32': {0: 2},
+                    'UIMAD.WIDE': {0: 2},
                     'IMAD.WIDE': {0: 2},
                     'LDSM.16.MT88.4': {0: 4},
                     'LDS.128': {0: 4},
+                    'LDS.64': {0: 2},
                     'LDG.E.128': {0: 4},
                     'LDCU.64': {0: 2},
+                    'LDCU.128': {0: 4},
                     'FMUL2.FTZ.RZ': {0: 2},
-                    'LDTM.x32': {0: 32}
+                    'LDTM.x32': {0: 32},
+                    'FFMA2.FTZ.RZ': {0: 2},
+                    'LDTM.16dp256bit.x16': {0: 64},
+                    'LDTM.16dp256bit.x4': {0: 16},
+                    'LDTM.x128': {0: 128},
+                    'LDTM.x4': {0: 4},
+                    'HGMMA.64x256x16.F32': {0: 128},
                     }
 
     READ_WRITE = {'IMAD.HI.U32': {0}}
@@ -175,7 +187,7 @@ class SASSInstruction(Instruction):
                     is_negated = True
 
                 suffix = []
-                reg_suffixes = [".reuse", ".B1", ".B2", ".B3", ".H0_H0",
+                reg_suffixes = [".reuse", ".B1", ".B2", ".B3", ".H0_H0", ".H1_H1",
                                 ".H1", ".HI_LO", ".F32", ".F32x2"]
                 while True:
                     for rs in reg_suffixes:
@@ -266,7 +278,7 @@ class SASSInstruction(Instruction):
 
     def reads(self):
         write_args = self.write_count()
-        rds = list(x for x in self.args[write_args:] if isinstance(x, Register))
+        rds = list(x for x in self.args[write_args:] if isinstance(x, Register) and (x.n not in {'PR', 'UPR'}))
         if self.predicate:
             n = self.predicate
             if n[0] == "!": n = n[1:]
@@ -370,12 +382,18 @@ class SASSControlInsn(SASSInstruction, ControlInsn):
         else:
             addr_arg = 0
             if self.opcode == "BRA.U":
-                addr_arg = 1 # BRA.U !UP0, addr
+                # predicated version available
+                if isinstance(self.args[0], SASSRegister):
+                    addr_arg = 1 # BRA.U !UP0, addr
             elif self.opcode == "BRA":
                 if isinstance(self.args[0], SASSRegister):
                     # on CC 10.0: @!P1 BRA !P2, 0xe8a0
                     addr_arg = 1
+            elif self.opcode == "BRA.DIV":
+                assert isinstance(self.args[0], SASSRegister), self.args[0]
+                addr_arg = 1
 
+            assert addr_arg < len(self.args), f"{self.opcode}, {self.args}, {addr_arg}"
             assert isinstance(self.args[addr_arg], str), f"Expecting address: {self.opcode} {self.args[addr_arg]} {addr_arg}"
             if self.args[addr_arg].startswith('0x'):
                 tgt = self.args[addr_arg][2:]
@@ -386,7 +404,7 @@ class SASSControlInsn(SASSInstruction, ControlInsn):
                 return self.args[0]
 
     def is_conditional(self):
-        return (self.predicate is not None) or (self.opcode == "BRA.U" and isinstance(self.args[0], Register))
+        return (self.predicate is not None) or (self.opcode == "BRA.U" and isinstance(self.args[0], Register)) or (self.opcode == "BRA.DIV")
 
     def is_indirect(self):
         return self.opcode == "RET.REL.NODEC" or self.opcode == "BRX"
@@ -424,11 +442,17 @@ class SASSIndirectResolver:
 
         addresses = []
         for i in chain:
-            assert i.opcode in {'RET.REL.NODEC', 'MOV'}, f"{i.opcode} {chain}"
+            assert i.opcode in {'RET.REL.NODEC', 'MOV', 'IMAD.MOV.U32'}, f"{i.opcode} {chain}"
             if i.opcode == 'MOV' and isinstance(i.args[1], str) and i.args[1].startswith('0x'):
                 addr = i.args[1][2:]
+                if len(addr) < 4:
+                    addr = "0"*(4 - len(addr)) + addr
+
                 assert addr in self.instructions, f"{i} does not contain a valid address {addr}"
                 addresses.append(addr)
+            elif i.opcode == 'IMAD.MOV.U32':
+                # this reads a register but the producer is next
+                continue
 
         return addresses
 
