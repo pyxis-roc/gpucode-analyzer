@@ -122,6 +122,8 @@ class SASSInstruction(Instruction):
                    ('IADD3', 6): 3,
                    ('UIADD3', 5): 2,
                    ('LOP3.LUT', 7): 2,
+                   ('ULOP3.LUT', 7): 2,
+                   ('SHFL.IDX', 5): 2,
                    ('UIADD3', 6): 3,
                    'RET.REL.NODEC': 0,
                    ('BRA.U', 2): 0, # for the BRA.U UP1, 0x... form
@@ -133,27 +135,66 @@ class SASSInstruction(Instruction):
     MULTI_WRITER = {'LDG.E.128.STRONG.GPU': {0: 4},
                     'LDG.E.128.CONSTANT': {0: 4},
                     'LDG.E.LTC128B.CONSTANT': {0: 4},
+                    'LDG.E.128': {0: 4},
+
+                    'LDL.LU.64': {0: 2},
+                    'LDL.64': {0: 2},
+
+                    'CS2R': {0: 2},
+
                     'ULDC.64': {0: 2},
                     'LDC.64': {0: 2},
+
                     'HMMA.16816.F32': {0: 4},
+                    'HGMMA.64x256x16.F32': {0: 128},
+                    'HGMMA.64x64x16.F16': {0: 16},
+                    'HGMMA.64x64x16.F32': {0: 32},
+                    'HGMMA.64x64x16.F32.BF16': {0: 32},
+                    'HGMMA.64x256x16.F32.BF16': {0: 128},
+                    'HGMMA.64x128x8.F32.TF32': {0: 64},
+                    'HGMMA.64x64x8.F32.TF32': {0: 32},
+                    'HGMMA.64x256x16.F16': {0: 64},
+                    'HGMMA.64x128x16.F32.BF16': {0: 64},
+                    'HGMMA.64x128x16.F16': {0: 32},
+                    'HGMMA.64x128x16.F32': {0: 64},
+                    'HGMMA.64x8x8.F32.TF32': {0: 4},
+                    'HGMMA.64x16x8.F32.TF32': {0: 8},
+                    'HGMMA.64x32x8.F32.TF32': {0: 16},
+                    'HGMMA.64x16x16.F32.BF16': {0: 8},
+                    'HGMMA.64x16x16.F32': {0: 8},
+                    'HGMMA.64x32x16.F32.BF16': {0: 16},
+                    'HGMMA.64x192x8.F32.TF32': {0: 96},
+                    'HGMMA.64x192x16.F32': {0: 96},
+                    'HGMMA.64x96x16.F32': {0: 48},
+                    'HGMMA.64x32x16.F32': {0: 16},
+
+                    'IGMMA.64x256x32.S8.S8': {0: 128},
+                    'IGMMA.64x128x32.S8.S8': {0: 64},
+                    'IGMMA.64x64x32.S8.S8': {0: 32},
+
                     'IMAD.WIDE.U32': {0: 2},
                     'UIMAD.WIDE.U32': {0: 2},
                     'UIMAD.WIDE': {0: 2},
                     'IMAD.WIDE': {0: 2},
+
                     'LDSM.16.MT88.4': {0: 4},
+                    'LDSM.16.M88.4': {0: 4},
+
                     'LDS.128': {0: 4},
                     'LDS.64': {0: 2},
-                    'LDG.E.128': {0: 4},
+
                     'LDCU.64': {0: 2},
                     'LDCU.128': {0: 4},
+
                     'FMUL2.FTZ.RZ': {0: 2},
-                    'LDTM.x32': {0: 32},
                     'FFMA2.FTZ.RZ': {0: 2},
+
+                    'LDTM.x32': {0: 32},
                     'LDTM.16dp256bit.x16': {0: 64},
                     'LDTM.16dp256bit.x4': {0: 16},
                     'LDTM.x128': {0: 128},
                     'LDTM.x4': {0: 4},
-                    'HGMMA.64x256x16.F32': {0: 128},
+
                     }
 
     READ_WRITE = {'IMAD.HI.U32': {0}}
