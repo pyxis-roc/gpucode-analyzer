@@ -3,26 +3,26 @@
 from .isa.sass import SASSFile
 from .generic_cfg import CFG
 
-EXT= {'.sass': SASSFile}
-
 def main():
     import argparse
+    from gpucodeanalyzer.isa.loader import get_dispatcher, get_metadata
 
     p = argparse.ArgumentParser(description="Construct a CFG generically")
     p.add_argument("code")
+    p.add_argument("-m", dest="metadata", help="Metadata file")
     p.add_argument("-o", "--output", help="Output CFG as a dot file")
     p.add_argument("-c", "--count", action="store_true", help="Output counts")
     p.add_argument("--nc", "--no-code", dest="show_code", action="store_false", help="Do not output code")
+    p.add_argument("--fn", help="Function to slice (if multiple)")
 
     args = p.parse_args()
 
-    if args.code.endswith(".sass"):
-        code = EXT[".sass"](args.code)
-    else:
-        print("Unrecognized extension")
+    metadata = get_metadata(args.metadata)
+    disp = get_dispatcher(args.code)
+    code = disp.loader()(args.code, metadata=metadata)
 
     #code.dump()
-    cfg = CFG(code)
+    cfg = CFG(code, args.fn)
     cfg.build()
     #cfg.dump()
     if args.output:

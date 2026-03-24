@@ -94,23 +94,26 @@ class DefUseAnalysis:
 
                 if not quiet:
                     if len(reads) != len(set([x[0] for x in rsub])):
-                        print("*** MISSING DEFNS ***", i.label, reads, rsub)
+                        print("*** MISSING DEFNS ***", i.label, i.opcode, reads, rsub)
 
                 rdefs[i.label] = rsub
 
         self.rdefs = rdefs
 
 def test():
-    from gpucodeanalyzer.isa.sass import SASSFile
+    from gpucodeanalyzer.isa.loader import get_dispatcher, get_metadata
     from gpucodeanalyzer.generic_cfg import CFG
     import argparse
 
-    p = argparse.ArgumentParser(description="Process SASS file")
-    p.add_argument("sassfile")
+    p = argparse.ArgumentParser(description="Write out def-use data")
+    p.add_argument("asmfile")
     p.add_argument("--fn", help="Function")
+    p.add_argument("-m", dest="metadata", help="Metadata file")
     args = p.parse_args()
 
-    code = SASSFile(args.sassfile)
+    metadata = get_metadata(args.metadata)
+    disp = get_dispatcher(args.asmfile)
+    code = disp.loader()(args.asmfile, metadata=metadata)
     cfg = CFG(code, args.fn)
     cfg.build()
     da = DefUseAnalysis(cfg)

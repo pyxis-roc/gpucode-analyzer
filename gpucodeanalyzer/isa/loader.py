@@ -1,6 +1,15 @@
 from .sass.sass_dispatch import SASSDispatcher
+import json
 
 DISPATCHERS = [SASSDispatcher()]
+
+def get_metadata(metadatafile):
+    if metadatafile:
+        with open(metadatafile, "r") as f:
+            metadata = json.load(f)
+            return metadata
+
+    return None
 
 def get_dispatcher(filename):
     for d in DISPATCHERS:
