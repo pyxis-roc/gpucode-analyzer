@@ -128,7 +128,8 @@ class SASSInstruction(Instruction):
                    'RET.REL.NODEC': 0,
                    ('BRA.U', 2): 0, # for the BRA.U UP1, 0x... form
                    'BRX': 0,
-                   'ELECT': 2
+                   'ELECT': 2,
+                   ('LEA', 5): 2
                    }
 
     # writes to multiple registers implicitly
@@ -151,15 +152,20 @@ class SASSInstruction(Instruction):
                     'HGMMA.64x64x16.F32': {0: 32},
                     'HGMMA.64x64x16.F32.BF16': {0: 32},
                     'HGMMA.64x256x16.F32.BF16': {0: 128},
+
                     'HGMMA.64x128x8.F32.TF32': {0: 64},
                     'HGMMA.64x64x8.F32.TF32': {0: 32},
+
                     'HGMMA.64x256x16.F16': {0: 64},
                     'HGMMA.64x128x16.F32.BF16': {0: 64},
                     'HGMMA.64x128x16.F16': {0: 32},
                     'HGMMA.64x128x16.F32': {0: 64},
+
                     'HGMMA.64x8x8.F32.TF32': {0: 4},
                     'HGMMA.64x16x8.F32.TF32': {0: 8},
                     'HGMMA.64x32x8.F32.TF32': {0: 16},
+                    'HGMMA.64x256x8.F32.TF32': {0: 128}, # unconfirmed but works
+
                     'HGMMA.64x16x16.F32.BF16': {0: 8},
                     'HGMMA.64x16x16.F32': {0: 8},
                     'HGMMA.64x32x16.F32.BF16': {0: 16},
@@ -167,6 +173,8 @@ class SASSInstruction(Instruction):
                     'HGMMA.64x192x16.F32': {0: 96},
                     'HGMMA.64x96x16.F32': {0: 48},
                     'HGMMA.64x32x16.F32': {0: 16},
+                    'HGMMA.64x16x16.F16': {0: 4},
+                    'HGMMA.64x32x16.F16': {0: 8},
 
                     'IGMMA.64x256x32.S8.S8': {0: 128},
                     'IGMMA.64x128x32.S8.S8': {0: 64},
@@ -188,6 +196,7 @@ class SASSInstruction(Instruction):
 
                     'FMUL2.FTZ.RZ': {0: 2},
                     'FFMA2.FTZ.RZ': {0: 2},
+                    'F2I.U64.TRUNC': {0: 2},
 
                     'LDTM.x32': {0: 32},
                     'LDTM.16dp256bit.x16': {0: 64},
