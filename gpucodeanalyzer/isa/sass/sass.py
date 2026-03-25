@@ -10,7 +10,7 @@ SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B[123]|\.H0_H0|\.
 SASS_ADDR_RE = re.compile(r"\[(?P<reg1>R[0-9Z]+)(\.(?P<suff>U32|X16))?(\+(?P<reg2>UR[0-9Z]+)|(?P<imm>0x.+))?\]")
 
 CX_RE = re.compile(r"-?cx\[(?P<regbase>.+)\]\[(?P<offset>.+)\]")
-C_RE = re.compile(r"-?c\[(?P<bank>.+)\]\[(?P<regoffset>R.+)\]")
+C_RE = re.compile(r"-?c\[(?P<bank>.+)\]\[(?P<regoffset>U?R\d+).+\]")
 
 CONSTANT_REGS = set(['RZ', 'SRZ', 'URZ', 'PT', 'UPT', 'SR_TID.X', 'SR_CTAID.X',
                      'SR_TID.Y', 'SR_TID.Z', 'SR_CTAID.Y', 'SR_CTAID.Z'
@@ -346,7 +346,7 @@ class SASSInstruction(Instruction):
             assert isinstance(self.args[1], Register) and self.args[1].n == "UPR"
             rds.extend(self._decode_predset_imm(self.args[-1], uniform="U"))
 
-        for x in self.args[write_args:]:
+        for x in self.args: # go for all operands
             if isinstance(x, SASSAddress):
                 rds.extend(x.registers())
 
