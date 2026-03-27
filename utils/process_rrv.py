@@ -14,7 +14,7 @@ except ImportError:
 from gpucodeanalyzer.isa.sass import SASSInstruction, SASSControlInsn, SASSFile, SASSRegister, PR_NUM
 
 INSN_START = re.compile(r"^CTA (?P<ctax>\d+),(?P<ctay>\d+),(?P<ctaz>\d+) - warp (?P<warp>\d+) - (?P<op_idx>\d+) - (?P<insn>.*) ;:$")
-KERNEL_START = re.compile(r"Kernel (?P<name>.*) - grid size (?P<gridx>\d+),(?P<gridy>\d+),(?P<gridz>\d+) - block size (?P<blockx>\d+),(?P<blocky>\d+),(?P<blockz>\d+) - nregs (?P<nregs>\d+) - shmem (?P<shmem>\d+) - cuda stream id (?P<stream>\d+)( - ipoint_pre (?P<ipoint_pre>\d+))?$")
+KERNEL_START = re.compile(r"Kernel ((?P<kidx>\d+):)?(?P<name>.*) - grid size (?P<gridx>\d+),(?P<gridy>\d+),(?P<gridz>\d+) - block size (?P<blockx>\d+),(?P<blocky>\d+),(?P<blockz>\d+) - nregs (?P<nregs>\d+) - shmem (?P<shmem>\d+) - cuda stream id (?P<stream>\d+)( - ipoint_pre (?P<ipoint_pre>\d+))?$")
 VALUES_START = re.compile(r"\* (R|C|UP|W|U|P)")
 UREG_VALUE = re.compile(r"UReg(?P<reg>\d+): (?P<value>0x.+)$")
 CONST_VALUE = re.compile(r"C(?P<size>\d+): (?P<value>0x.+)$")
@@ -33,6 +33,7 @@ class KernelData:
         self.shmem = kernel_match.group('shmem')
         self.stream = kernel_match.group('stream')
         self.kernel_idx = kernel_idx
+        self.recorded_kernel_idx = kernel_match.group('kidx')
 
     def __str__(self):
         return f"Kernel #{self.kernel_idx} {self.kernel} - {self.grid} - {self.blockdim}"
@@ -260,9 +261,20 @@ class RawTrace:
                             out.append((o.access(), o.operand, (lambda val: lambda x: val)(o.operand)))
 
 
-            assert reg_ptr == len(insn_data.regs), insn_data.insn
+            if reg_ptr != len(insn_data.regs):
+                if not (insn_data.insn.startswith('CS2R') and insn_data.insn.endswith('SRZ') ):
+                    print(f"{insn_data.insn} {reg_ptr} {len(insn_data.regs)},{insn_data.regs}")
+                    assert False
+
+                # nvbit doesn't know CS2R with SRZ writes two registers
+                print("WARNING: ", insn_data.insn, "mismatch")
+
             assert ureg_ptr == len(insn_data.uregs), insn_data.insn
             self._anno_cache[insn_data.insn] = out
+
+
+        if insn_data.insn.startswith('CS2R') and insn_data.insn.endswith('SRZ'):
+            insn_data.regs.append(insn_data.regs[0])
 
         for o in out:
             yield (o[0], o[1], o[2](insn_data))
@@ -289,11 +301,11 @@ class RawTrace:
                 writes = []
                 for access, op, vals in self.annotate_insn_regs(l):
                     if access == 'W':
-                        writes.append((access, op, vals[:kernel_threads]))
+                        writes.append((access, op, vals[:kernel_threads] if isinstance(vals, list) else vals))
                         continue
                     else:
                         if access == 'RW':
-                            writes.append(('W', op, vals[:kernel_threads]))
+                            writes.append(('W', op, vals[:kernel_threads] if isinstance(vals, list) else vals))
 
                         if self.state_tracking and isinstance(op, SASSRegister):
                             if op.n != 'PR':
@@ -312,14 +324,14 @@ class RawTrace:
                 for access, op, vals in writes:
                     yield (access, get_reg_or_str(op), vals)
                     if isinstance(op, SASSRegister) and not op.is_constant():
-                        state[op.n] = vals[:kernel_threads]
+                        state[op.n] = vals[:kernel_threads] if isinstance(vals, list) else vals
                         writer[op.n] = l.op_idx
 
                         # TODO
                         if l.insn.startswith("CS2R") and l.insn.endswith("SRZ"):
-                            adj = op.adjacent(1)[0]
-                            state[adj.n] = 0
-                            writer[adj.n] = l.op_idx
+                           adj = op.adjacent(1)[0]
+                           state[adj.n] = [0]*min(32, kernel_threads)
+                           writer[adj.n] = l.op_idx
 
 def get_observations(trace):
     def process_insn_data_args(data):
@@ -336,6 +348,7 @@ def get_observations(trace):
                 if len(val[0]) == 3:
                     val = [x[2] for x in val]
             elif isinstance(val, (int, str)):
+                # note: this is incorrect for predicate registers
                 val = [val] * maxargs
             elif isinstance(val, tuple) and len(val) == 2:
                 val = [val[1]] * maxargs # Ureg
