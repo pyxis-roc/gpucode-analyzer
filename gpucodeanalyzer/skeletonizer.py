@@ -1,4 +1,4 @@
-from .generic_cfg import Register
+from .generic_cfg import Register, CFG
 from .def_use import DefUseAnalysis
 
 class Skeletonizer:
@@ -46,16 +46,19 @@ class Skeletonizer:
 
 
 def main():
-    from gpucodeanalyzer.isa.sass import SASSFile
-    from gpucodeanalyzer.generic_cfg import CFG
+    from gpucodeanalyzer.isa.loader import get_dispatcher, get_metadata
     import argparse
 
-    p = argparse.ArgumentParser(description="Process SASS file")
-    p.add_argument("sassfile")
+    p = argparse.ArgumentParser(description="Generate a control-flow skeleton of an assembly file")
+    p.add_argument("asmfile")
+    p.add_argument("-m", dest="metadata", help="Metadata file")
+    p.add_argument("--fn", help="Function to slice (if multiple)")
     args = p.parse_args()
 
-    code = SASSFile(args.sassfile)
-    cfg = CFG(code)
+    metadata = get_metadata(args.metadata)
+    disp = get_dispatcher(args.asmfile)
+    code = disp.loader()(args.asmfile, metadata=metadata)
+    cfg = CFG(code, fn_name=args.fn)
     cfg.build()
 
     sk = Skeletonizer(cfg)

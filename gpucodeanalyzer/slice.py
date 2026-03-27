@@ -1,4 +1,4 @@
-from .generic_cfg import Register
+from .generic_cfg import Register, CFG
 from .def_use import DefUseAnalysis
 from .skeletonizer import Skeletonizer
 from .analyses.dom import Dominators
@@ -60,8 +60,7 @@ def get_labels(cfg, labels_or_re):
     return labels
 
 def main():
-    from gpucodeanalyzer.generic_cfg import CFG
-    from gpucodeanalyzer.isa.loader import get_dispatcher
+    from gpucodeanalyzer.isa.loader import get_dispatcher, get_metadata
     import argparse
 
     p = argparse.ArgumentParser(description="Slice a CFG")
@@ -76,17 +75,12 @@ def main():
 
     args = p.parse_args()
 
-    if args.metadata:
-        with open(args.metadata, "r") as f:
-            metadata = json.load(f)
-    else:
-        metadata = None
-
+    metadata = get_metadata(args.metadata)
     disp = get_dispatcher(args.asmfile)
     code = disp.loader()(args.asmfile, metadata=metadata)
     classifier = disp.classifier()()
 
-    cfg = CFG(code, args.fn)
+    cfg = CFG(code, fn_name=args.fn)
     cfg.build()
 
     sk = Slicer(cfg)
