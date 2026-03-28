@@ -34,6 +34,43 @@ class XlatInfo:
     def map_constant(self, fn, constant):
         return self.data[fn].get("constant_map", {}).get(constant, None)
 
+    @staticmethod
+    def create(sassfile):
+        out = {}
+        for c in sassfile.codes:
+            out[c] = {'global_decl': [], # C global declarations
+                      'args': [], # C argument declarations, for now
+                      'block_dim': None, # 3-element vector
+                      'grid_dim': None, # 3-element vector
+                      'arg_values': [{}],
+                      'constant_map': {} 
+                      }
+
+            if sassfile.metadata:
+                fnmeta = sassfile.metadata[c]
+                if not 'EIATTR_PARAM_CBANK' in fnmeta: continue
+
+                start = fnmeta['EIATTR_PARAM_CBANK']['start']
+                out[c]['args'] = ['']*len(fnmeta['EIATTR_KPARAM_INFO'])
+                for kpi in fnmeta['EIATTR_KPARAM_INFO']:
+                    cparam = f"c[0x0][0x{start+kpi['offset']:x}]"
+                    cc = cparam.replace("[", "_").replace("]", "_")
+
+                    out[c]['constant_map'][cparam] = cc
+
+                    sz = kpi['size']
+                    if sz == 4:
+                        sztype = 'uint32_t'
+                    elif sz == 8:
+                        sztype = 'uint64_t' # could also be pointer
+                    else:
+                        raise NotImplementedError
+
+                    out[c]['args'][kpi['ordinal']] = f"{sztype} {cc}"
+                    out[c]['arg_values'][0][cc] = ''
+
+        return out
+
 class Hook:
     name = None
     def gencode(self, translator, where, output):
@@ -552,3 +589,7 @@ class SASS2C:
         if len(self.causes):
             print("WARNING: Translation failed due to the following causes (missing instructions/data support + frequency of occurrence)")
             print(self.causes)
+
+    @staticmethod
+    def create_xlatinfo(sassfile):
+        return XlatInfo.create(sassfile)

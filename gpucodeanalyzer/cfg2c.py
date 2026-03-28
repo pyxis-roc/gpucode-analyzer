@@ -1,4 +1,5 @@
 def main():
+    from gpucodeanalyzer.isa.loader import get_dispatcher, get_metadata
     from gpucodeanalyzer.isa.sass import SASSFile, SASS2C
     from gpucodeanalyzer.generic_cfg import CFG
     from gpucodeanalyzer.skeletonizer import Skeletonizer
@@ -6,17 +7,21 @@ def main():
     import yaml
     import sys
     import argparse
+    from pathlib import Path
 
     p = argparse.ArgumentParser(description="Convert SASS file to C after skeletonizing it")
-    p.add_argument("sassfile", help="SASS file, usually a single module only.")
-    p.add_argument("xlatinfo", help="Translation information, YAML")
-    p.add_argument("-f", dest="func_name", help="Function name")
+    p.add_argument("asmfile", help="SASS file")
+    p.add_argument("xlatinfo", help="Translation information, YAML", type=Path)
+    p.add_argument("-f", "--fn", dest="func_name", help="Function name")
+    p.add_argument("-m", dest="metadata", help="Metadata file")
     p.add_argument("output")
 
     args = p.parse_args()
 
-    code = SASSFile(args.sassfile)
-    cfg = CFG(code)
+    metadata = get_metadata(args.metadata)
+    disp = get_dispatcher(args.asmfile)
+    code = disp.loader()(args.asmfile, metadata=metadata)
+    cfg = CFG(code, fn_name=args.func_name)
     cfg.build()
 
     sk = Skeletonizer(cfg)
@@ -24,19 +29,18 @@ def main():
 
     sk_cfg = sk.get_skeleton_cfg()
 
+    if not args.xlatinfo.exists():
+        xlatinfo = disp.converter().create_xlatinfo(code)
+        with open(args.xlatinfo, "w") as f:
+            f.write(yaml.dump(xlatinfo))
+
+        print(f"INFO: Created {args.xlatinfo} with default arguments")
+
     with open(args.xlatinfo, "r") as f:
         xlatinfo = yaml.safe_load(f)
 
-    if args.func_name is None:
-        if xlatinfo is not None and len(xlatinfo) == 1:
-            args.func_name = list(xlatinfo.keys())[0]
-        else:
-            print("ERROR: You need to specify a function to translate using -f") # for now
-            sys.exit(1)
-
-
     with open(args.output, "w") as f:
-        op = SASS2C(f, xlatinfo)
+        op = disp.converter()(f, xlatinfo)
         op.init_module()
         sk_cfg.convert(op, args.func_name)
         op.finish()
