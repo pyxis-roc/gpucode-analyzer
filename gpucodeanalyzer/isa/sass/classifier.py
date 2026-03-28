@@ -14,6 +14,8 @@ class SASSClassifier:
         elif insn.opcode.startswith("LDG."):
             if ".128." in insn.opcode:
                 sz = '/16'
+            elif insn.opcode == 'LDG.E.CONSTANT':
+                sz = '/32'
             else:
                 assert False, insn.opcode # NotImplemented
 
@@ -21,6 +23,8 @@ class SASSClassifier:
         elif insn.opcode.startswith("STG."):
             if ".128." in insn.opcode or insn.opcode.endswith('.128'):
                 sz = '/16'
+            elif insn.opcode == 'STG.E':
+                sz = '/32'
             else:
                 assert False, insn.opcode
             return f"memory-write/global{sz}"
@@ -98,6 +102,8 @@ class SASSClassifier:
             return "int-arithmetic-uniform"
         elif insn.opcode.startswith('HMMA.'):
             return 'tc-arithmetic/fp16' # tensor-code
+        elif insn.opcode.startswith('FFMA'):
+            return 'fp-arithmetic' # tensor-code
         elif insn.opcode.startswith('F2FP.'):
             return 'conversion/float'
         elif insn.opcode.startswith('F2I.'):

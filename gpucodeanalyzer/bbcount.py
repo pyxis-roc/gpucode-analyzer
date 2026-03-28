@@ -66,24 +66,30 @@ def load_bbcount(countfile):
 def main():
     from gpucodeanalyzer.isa.sass import SASSFile, SASS2C, SASSClassifier
     from gpucodeanalyzer.generic_cfg import CFG
+    from gpucodeanalyzer.isa.loader import get_dispatcher, get_metadata
 
     import yaml
     import sys
     import argparse
 
     p = argparse.ArgumentParser(description="Count instructions")
-    p.add_argument("sassfile", help="SASS file, usually a single module only.")
+    p.add_argument("asmfile", help="SASS file, usually a single module only.")
     p.add_argument("bbcount", help="Output of a basic-block counter")
+    p.add_argument("-m", dest="metadata", help="Metadata file")
+    p.add_argument("--fn", help="Function to slice (if multiple)")
     p.add_argument("--raw", action="store_true", help="Output raw counts")
 
     args = p.parse_args()
 
-    code = SASSFile(args.sassfile)
-    cfg = CFG(code)
+    metadata = get_metadata(args.metadata)
+    disp = get_dispatcher(args.asmfile)
+    code = disp.loader()(args.asmfile, metadata=metadata)
+
+    cfg = CFG(code, fn_name=args.fn)
     cfg.build()
 
     counts = load_bbcount(args.bbcount)
-    clsfy = SASSClassifier()
+    clsfy = disp.classifier()()
 
     if len(counts) > 1:
         raise NotImplementedError("Do not support multiple functions in CFG")
