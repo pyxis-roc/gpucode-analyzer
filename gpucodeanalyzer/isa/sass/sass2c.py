@@ -368,6 +368,8 @@ class SASS2C:
             opcode = "IABS"
         elif i.opcode == "EXIT":
             opcode = "EXIT"
+        elif i.opcode == "MOV":
+            opcode = "MOV"
         elif i.opcode == "UMOV":
             opcode = "UMOV"
         elif i.opcode == "UIADD3":
@@ -397,6 +399,8 @@ class SASS2C:
             opcode = "ULDC"
         elif i.opcode == "ULEA.HI":
             opcode = "ULEA_HI"
+        elif i.opcode == "LEA":
+            opcode = "LEA"
         elif i.opcode == "LEA.HI":
             opcode = "LEA_HI"
         elif i.opcode == "LEA.HI.SX32":

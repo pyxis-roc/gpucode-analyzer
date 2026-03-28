@@ -95,6 +95,9 @@ static uint32_t FROM_FLOAT(float f) {
 #define ISETP_NE_U32_AND_D0(dst0, dst1, src1, src2, src3) dst0 = (src1 != src2) && src3
 #define ISETP_NE_U32_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
 
+#define ISETP_LE_AND_D0(dst0, dst1, src1, src2, src3) dst0 = ((int32_t) src1 <= (int32_t) src2) && src3
+#define ISETP_LE_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
+
 #define ISETP_NE_AND_D0(dst0, dst1, src1, src2, src3) dst0 = ((int32_t) src1 != (int32_t) src2) && src3
 #define ISETP_NE_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
 
@@ -117,6 +120,7 @@ static uint32_t FROM_FLOAT(float f) {
 #define UISETP_LT_AND_D1(dst0, dst1, src1, src2, src3) ISETP_LT_AND_D1(dst0, dst1, src1, src2, src3)
 
 
+#define MOV(dst, src) dst = src
 #define UMOV(dst, src) dst = src
 #define UIADD3(dst, src1, src2, src3) dst = src1 + src2 + src3
 #define LOP3_LUT(dst, src1, src2, src3, immLut) dst = logical_op3(src1, src2, src3, immLut)
@@ -145,6 +149,8 @@ static uint32_t FROM_FLOAT(float f) {
 
 #define SEL(dst, src1, src2, pred) dst = pred ? src1 : src2
 #define USEL(dst, src1, src2, pred) SEL(dst, src1, src2, pred)
+
+#define LEA(dst, src, b, imm_shift) dst = (src << imm_shift) + b
 
 #define LEA_HI(dst, alo, b, ahi, imm_shift) dst = ((concat_u32(ahi, alo) << imm_shift) >> 32) + b
 
