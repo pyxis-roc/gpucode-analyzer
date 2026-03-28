@@ -7,3 +7,6 @@ class Dispatcher:
 
     def classifier(self):
         raise NotImplementedError
+
+    def converter(self):
+        raise NotImplementedError

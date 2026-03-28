@@ -1,5 +1,5 @@
 from ..dispatch import Dispatcher
-from . import SASSFile, SASSClassifier
+from . import SASSFile, SASSClassifier, SASS2C
 
 class SASSDispatcher(Dispatcher):
     def can_handle_by_ext(self, filename):
@@ -10,3 +10,6 @@ class SASSDispatcher(Dispatcher):
 
     def classifier(self):
         return SASSClassifier
+
+    def converter(self):
+        return SASS2C
