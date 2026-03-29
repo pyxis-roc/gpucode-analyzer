@@ -14,6 +14,9 @@ class XlatInfo:
     def get_global_decls(self, fn):
         return self.data[fn].get("global_decl", [])
 
+    def get_main_inject_code(self, fn):
+        return self.data[fn].get("main_inject_code", "")
+
     def get_args(self, fn):
         return self.data[fn].get("args", [])
 
@@ -43,7 +46,8 @@ class XlatInfo:
                       'block_dim': None, # 3-element vector
                       'grid_dim': None, # 3-element vector
                       'arg_values': [{}],
-                      'constant_map': {} 
+                      'constant_map': {},
+                      'main_inject_code': "",
                       }
 
             if sassfile.metadata:
@@ -92,8 +96,6 @@ class PathTraceBlockHook(BlockHook):
     def gencode(self, translator, where, output):
         if where == 'includes':
             output.write("#include <pathtrace.h>\n")
-        elif where == 'global':
-            output.write("bool debug_flow;\n");
         elif where == 'kernel':
             output.write(f"    struct path_traces *pt = path_trace_create(GRID_DIM.X*GRID_DIM.Y*GRID_DIM.Z*CTA_DIM.X*CTA_DIM.Y*CTA_DIM.Z); \n")
             output.write(f'    if(!pt) fprintf(stderr, "ERROR: Failed to create path trace.\\n");\n')
@@ -119,6 +121,10 @@ class PathTraceBlockHook(BlockHook):
         output.write(f'    path_trace_add_entry_fast(trace, 0x{block.target()}, 1);\n')
 
 class DebugFlowBlockHook(BlockHook):
+    def gencode(self, translator, where, output):
+        if where == 'global':
+            output.write("bool debug_flow;\n");
+
     def block_entry_hook(self, translator, block, output):
         output.write(f'    if(debug_flow) printf("{block.target()}\\n");\n')
 
@@ -182,11 +188,11 @@ class DebugOutputInsnHook(InsnHook):
             output.write(f'    if({debug_predicate}debug_output) printf("{insn.label} " {fmt_str}"\\n", {fmt_val});\n')
 
 class SASS2C:
-    def __init__(self, output, xlatinfo, hooks = None):
+    def __init__(self, output, xlatinfo, hooks = None, config = None):
         self.output = output
         self.causes = {}
         self.counters = []
-        self.config = set(['gen_path_info'])
+        self.config = set() if config is None else config
         self.xlatinfo = XlatInfo(xlatinfo)
         self.hooks = [DebugOutputInsnHook()]
         self.block_hooks = []
@@ -512,6 +518,10 @@ class SASS2C:
 
     def generate_caller(self):
         self.output.write("int main(int argc, char *argv[]) {\n")
+
+        ic = self.xlatinfo.get_main_inject_code(self.func_name)
+        if ic:
+            self.output.write(ic)
 
         bdim = self.xlatinfo.get_block_dim(self.func_name)
         gdim = self.xlatinfo.get_grid_dim(self.func_name)

@@ -12,8 +12,11 @@ def main():
     p = argparse.ArgumentParser(description="Convert SASS file to C after skeletonizing it")
     p.add_argument("asmfile", help="SASS file")
     p.add_argument("xlatinfo", help="Translation information, YAML", type=Path)
+    p.add_argument("--path-info", action="store_true", help="Compute path information")
     p.add_argument("-f", "--fn", dest="func_name", help="Function name")
     p.add_argument("-m", dest="metadata", help="Metadata file")
+    p.add_argument("-x", dest="addl_xdata", help="Additional metadata files to merge", action="append")
+
     p.add_argument("output")
 
     args = p.parse_args()
@@ -39,8 +42,19 @@ def main():
     with open(args.xlatinfo, "r") as f:
         xlatinfo = yaml.safe_load(f)
 
+    for xd in args.addl_xdata:
+        with open(xd, "r") as f:
+            addlxd = yaml.safe_load(f)
+
+            for fn in addlxd:
+                xlatinfo[fn].update(addlxd[fn])
+
+    config = set()
+    if args.path_info:
+        config.add('gen_path_info')
+
     with open(args.output, "w") as f:
-        op = disp.converter()(f, xlatinfo)
+        op = disp.converter()(f, xlatinfo, config=config)
         op.init_module()
         sk_cfg.convert(op, args.func_name)
         op.finish()
