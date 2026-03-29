@@ -362,8 +362,8 @@ class SASS2C:
         opcode = None
         if i.opcode == "CS2R":
             opcode = "CS2R"
-        elif i.opcode == "S2R":
-            opcode = "S2R"
+        elif i.opcode in {"S2R", "S2UR"}:
+            opcode = i.opcode
         elif i.opcode.startswith("IMAD"):
             opcode = i.opcode.replace(".", "_")
         elif i.opcode == "IMAD":
@@ -461,6 +461,8 @@ class SASS2C:
             opcode = "SHF_R_S32_HI"
         elif i.opcode == "USHF.R.S32.HI":
             opcode = "USHF_R_S32_HI"
+        elif i.opcode == "USHF.L.U32":
+            opcode = "USHF_L_U32"
         else:
             self._xlat_failure(f'opcode {i.opcode}')
 

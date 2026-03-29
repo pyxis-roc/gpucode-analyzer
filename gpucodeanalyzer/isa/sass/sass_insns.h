@@ -43,6 +43,7 @@ static uint32_t FROM_FLOAT(float f) {
 }
 
 #define S2R(dst, src) dst = src
+#define S2UR(dst, src) dst = src
 
 #define IABS(dst, src) dst = abs(src)
 
@@ -138,7 +139,10 @@ static uint32_t FROM_FLOAT(float f) {
 #define concat_u32(hi, lo) ((((uint64_t) hi) << 32) | (uint64_t) lo)
 
 #define rotate_right_64(val, rot) rot == 64 ? val : ((val << (64 - rot)) | (val >> rot))
+#define rotate_left_64(val, rot) rot == 64 ? val : ((val << rot) | (val >> (64 - rot)))
 
+#define SHF_L_U32(dst, src1, rot, src2) dst = rotate_left_64(concat_u32(src2, src1), rot)
+#define USHF_L_U32(dst, src1, rot, src2) SHF_L_U32(dst, src1, rot, src2)
 
 #define SHF_R_U32_HI(dst, src1, rot, src2) dst = ((rotate_right_64(concat_u32(src2, src1), rot) >> 32) & 0xFFFFFFFFUL)
 #define USHF_R_U32_HI(dst, src1, rot, src2) SHF_R_U32_HI(dst, src1, rot, src2)
