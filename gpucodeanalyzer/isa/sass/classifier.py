@@ -90,7 +90,7 @@ class SASSClassifier:
             return "int-arithmetic"
         elif insn.opcode.startswith("MOV.") or insn.opcode == "SEL" or insn.opcode == "USEL" or insn.opcode.startswith("UMOV.") or insn.opcode == "MOV" or insn.opcode == "UMOV" or insn.opcode == "P2R":
             return "register-to-register"
-        elif insn.opcode == "CS2R" or insn.opcode == 'S2R' or insn.opcode == 'R2P':
+        elif insn.opcode in {'CS2R','S2R','R2P','S2UR'}:
             return "register-to-register"
         elif insn.opcode.startswith("SHF."):
             return "int-arithmetic"
