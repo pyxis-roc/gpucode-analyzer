@@ -2,11 +2,12 @@
 
 import re
 from collections import namedtuple
+import json
 
 BBCount = namedtuple('BBCount', 'function label count')
 COUNT_RE = re.compile(r'^(?P<function>.*)_bbcount_(?P<label>.*) = (?P<count>\d+)$')
 
-def raw_instruction_counts(cfg, fncounts, classifier):
+def raw_instruction_counts(cfg, fncounts, classifier, output = None):
     for b in cfg.blocks:
         tgt = b.target()
         if tgt not in fncounts:
@@ -17,9 +18,10 @@ def raw_instruction_counts(cfg, fncounts, classifier):
             for i in b.code:
                 cls = classifier.classify(i)
                 if not isinstance(cls, list): cls = [cls]
-                print(i.label, i.insn, "*", countinfo.count, "*", " ".join(cls))
+                print(i.label, i.insn, "*", countinfo.count, "*", " ".join(cls),
+                      file=output)
 
-def get_instruction_counts(cfg, fncounts, classifier):
+def get_instruction_counts(cfg, fncounts, classifier, output = None):
     class_count = {}
     intensity = {}
 
@@ -46,8 +48,11 @@ def get_instruction_counts(cfg, fncounts, classifier):
                     if cls == "unknown":
                         print(i.label, i.insn, countinfo.count, cls)
 
-    print(class_count)
-    print(intensity)
+    print(json.dumps({'class': class_count,
+                      'operation': intensity},
+                     indent = '  '),
+          file=output
+          )
 
 def load_bbcount(countfile):
     out = {}
@@ -78,6 +83,7 @@ def main():
     p.add_argument("-m", dest="metadata", help="Metadata file")
     p.add_argument("--fn", help="Function to slice (if multiple)")
     p.add_argument("--raw", action="store_true", help="Output raw counts")
+    p.add_argument("-o", dest="output", help="Output file")
 
     args = p.parse_args()
 
@@ -94,11 +100,13 @@ def main():
     if len(counts) > 1:
         raise NotImplementedError("Do not support multiple functions in CFG")
 
+    output = None if args.output is None else open(args.output, "w")
+
     for fn in counts:
         if args.raw:
-            raw_instruction_counts(cfg, counts[fn], clsfy)
+            raw_instruction_counts(cfg, counts[fn], clsfy, output)
         else:
-            get_instruction_counts(cfg, counts[fn], clsfy)
+            get_instruction_counts(cfg, counts[fn], clsfy, output)
 
 if __name__ == "__main__":
     main()

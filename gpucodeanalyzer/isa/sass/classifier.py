@@ -9,6 +9,8 @@ class SASSClassifier:
             return "int-arithmetic"
         elif insn.opcode.startswith("MUFU."): # or insn.opcode.startswith("IADD"):
             return "fp-arithmetic"
+        elif insn.opcode.startswith("FMUL.") or insn.opcode == 'FMUL': # or insn.opcode.startswith("IADD"):
+            return "fp-arithmetic"
         elif insn.opcode.startswith('UIADD3.') or insn.opcode == 'UIADD3':
             return "int-arithmetic-uniform"
         elif insn.opcode.startswith("LDG."):
@@ -105,11 +107,13 @@ class SASSClassifier:
         elif insn.opcode.startswith('FFMA'):
             return 'fp-arithmetic' # tensor-code
         elif insn.opcode.startswith('F2FP.'):
-            return 'conversion/float'
+            return 'conversion/float-to-float'
         elif insn.opcode.startswith('F2I.'):
-            return 'conversion/float'
+            return 'conversion/float-to-int'
         elif insn.opcode.startswith('I2F.'):
-            return 'conversion/int'
+            return 'conversion/int-to-float'
+        elif insn.opcode.startswith('I2FP.'):
+            return 'conversion/int-to-float'
 
         return "unknown"
 
@@ -146,10 +150,12 @@ class SASSClassifier:
             return {'int-arithmetic': 1}
         elif cls == 'control' or cls == 'barrier' or cls.startswith('barrier'):
             return {}
-        elif cls == 'conversion/float':
+        elif cls == 'conversion/float-to-int':
             return {'conversion': 32} # for now
-        elif cls == 'conversion/int':
+        elif cls == 'conversion/int-to-float':
             return {'conversion': 32} # for now
+        elif cls == 'conversion/float-to-float':
+            return {'conversion': 32}
         elif cls == 'fp-arithmetic':
             return {'fp-arithmetic': 32} 
         elif cls == 'tc-arithmetic/fp16':
