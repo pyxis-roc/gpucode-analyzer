@@ -15,7 +15,7 @@ def main():
     p.add_argument("--path-info", action="store_true", help="Compute path information")
     p.add_argument("-f", "--fn", dest="func_name", help="Function name")
     p.add_argument("-m", dest="metadata", help="Metadata file")
-    p.add_argument("-x", dest="addl_xdata", help="Additional metadata files to merge", action="append")
+    p.add_argument("-x", dest="addl_xdata", help="Additional metadata files to merge", action="append", default=[])
 
     p.add_argument("output")
 

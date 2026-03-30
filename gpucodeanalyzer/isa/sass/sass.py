@@ -6,7 +6,7 @@ from ...def_use import DefUseAnalysis
 # assemblies dumped from cuobjdump usually have function name information and are multiple functions.
 
 SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;(\s*/\* 0x([0-9a-f]+) \*/)?$")
-SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B[123]|\.H0_H0|\.H1_H1)?)|(UPR|UPT|PR|PT|-?RZ|URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
+SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B[123]|\.H0_H0|\.H1_H1)?)|(UPR|UPT|PR|PT|-?RZ|~?URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
 SASS_ADDR_RE = re.compile(r"\[(?P<reg1>R[0-9Z]+)(\.(?P<suff>U32|X16))?(\+(?P<reg2>UR[0-9Z]+)|(?P<imm>0x.+))?\]")
 
 CX_RE = re.compile(r"-?cx\[(?P<regbase>.+)\]\[(?P<offset>.+)\]")
@@ -24,13 +24,14 @@ FUNCTION_BEGIN_RE = re.compile(r"\s+Function : (.*)$")
 FUNCTION_END_RE = re.compile(r"\s+\.\.\.\.\.\.\.\.\.\.$")
 
 class SASSRegister(Register):
-    def __init__(self, n, is_inverted = False, is_negated = False, is_reuse = False, suffix = None):
+    def __init__(self, n, is_inverted = False, is_negated = False, is_reuse = False, suffix = None, is_not = False):
         super().__init__(n)
 
         # todo: reuse, !, .cc
         self.is_inverted = is_inverted
         self.is_negated = is_negated
         self.is_reuse = is_reuse
+        self.is_not = is_not
         self.suffix = suffix
 
     def is_constant(self):
@@ -58,13 +59,16 @@ class SASSRegister(Register):
             n = n + ".reuse"
 
         if self.suffix:
-            n = n + suffix
+            n = n + self.suffix
 
         if self.is_inverted:
             return "!" + n
 
         if self.is_negated:
             return "-" + n
+
+        if self.is_not:
+            return "~" + n
 
         return n
 
@@ -129,7 +133,8 @@ class SASSInstruction(Instruction):
                    ('BRA.U', 2): 0, # for the BRA.U UP1, 0x... form
                    'BRX': 0,
                    'ELECT': 2,
-                   ('LEA', 5): 2
+                   ('LEA', 5): 2,
+                   ('SHFL.DOWN', 5): 2
                    }
 
     # writes to multiple registers implicitly
@@ -223,6 +228,7 @@ class SASSInstruction(Instruction):
                 is_inverted = False
                 is_negated = False
                 is_reuse = False
+                is_not = False
 
                 if " " in a:
                     a = a.split()[0]
@@ -235,6 +241,11 @@ class SASSInstruction(Instruction):
                 if a[0] == "-":
                     a = a[1:]
                     is_negated = True
+
+                if a[0] == "~":
+                    a = a[1:]
+                    is_not = True
+
 
                 suffix = []
                 reg_suffixes = [".reuse", ".B1", ".B2", ".B3", ".H0_H0", ".H1_H1",
@@ -257,7 +268,8 @@ class SASSInstruction(Instruction):
                 r = SASSRegister(a, is_inverted = is_inverted,
                                  is_negated = is_negated,
                                  is_reuse = is_reuse,
-                                 suffix = suffix)
+                                 suffix = suffix,
+                                 is_not = is_not)
 
                 out.append(r)
             else:

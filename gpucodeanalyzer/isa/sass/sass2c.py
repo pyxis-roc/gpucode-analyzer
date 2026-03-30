@@ -63,12 +63,14 @@ class XlatInfo:
                     out[c]['constant_map'][cparam] = cc
 
                     sz = kpi['size']
-                    if sz == 4:
+                    if sz == 1:
+                        sztype = 'uint8_t'
+                    elif sz == 4:
                         sztype = 'uint32_t'
                     elif sz == 8:
                         sztype = 'uint64_t' # could also be pointer
                     else:
-                        raise NotImplementedError
+                        raise NotImplementedError(f'Unknown argument size {sz}')
 
                     out[c]['args'][kpi['ordinal']] = f"{sztype} {cc}"
                     out[c]['arg_values'][0][cc] = ''
@@ -304,11 +306,18 @@ class SASS2C:
             else:
                 neg = ""
 
-            return neg + self.xlatinfo.map_constant(fn, cl)
-            #if cl == "c[0x0][0x0]":
-            #    return "GRID_DIM.X" # webgpu only?
-            #else:
-            #    return None
+            mc = self.xlatinfo.map_constant(fn, cl)
+
+            if mc is None:
+                # TODO: make this a compiler-specific mapping table
+                if cl == "c[0x0][0x0]":
+                    return neg + "CTA_DIM.X" # in webgpu is this grid_dim.x? also cuda?
+                elif cl == "c[0x0][0xc]":
+                    return neg + "GRID_DIM.X" # cuda
+
+                assert mc is not None, f"{fn} {cl}"
+
+            return neg + mc
 
         def process_cx_lookup(cx):
             return self.xlatinfo.map_constant(fn, cx)
@@ -366,8 +375,8 @@ class SASS2C:
             opcode = i.opcode
         elif i.opcode.startswith("IMAD"):
             opcode = i.opcode.replace(".", "_")
-        elif i.opcode == "IMAD":
-            opcode = "IMAD"
+        elif i.opcode in {"IMAD", "UIMAD"}:
+            opcode = i.opcode
         elif i.opcode == "IADD3":
             opcode = "IADD3"
         elif i.opcode == "IABS":
@@ -444,15 +453,23 @@ class SASS2C:
                 opcode.append(cvtop + "_D1")
         elif i.opcode == "BRA" or i.opcode == "CALL.REL.NOINC":
             opcode = i.opcode.replace(".", "_")
-            assert i.args[0].startswith('0x'), i.args[0]
-            label = i.args[0][2:]
+
+            if isinstance(i.args[0], SASSRegister):
+                opcode = opcode + "_PRED"
+                assert i.args[1].startswith('0x'), i.args[1]
+                label = i.args[1][2:]
+                args = process_args(i.args[0:1]) + ", "
+            else:
+                assert i.args[0].startswith('0x'), i.args[0]
+                label = i.args[0][2:]
+                args = ''
 
             if len(label) < 4:
                 label = "0"*(4-len(label)) + label
 
             assert len(label) >= 4, label
 
-            args = f'label_{label}'
+            args += f'label_{label}'
         elif i.opcode == "SHF.R.U32.HI":
             opcode = "SHF_R_U32_HI"
         elif i.opcode == "USHF.R.U32.HI":
