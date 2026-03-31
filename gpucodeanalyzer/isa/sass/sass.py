@@ -6,7 +6,7 @@ from ...def_use import DefUseAnalysis
 # assemblies dumped from cuobjdump usually have function name information and are multiple functions.
 
 SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;(\s*/\* 0x([0-9a-f]+) \*/)?$")
-SASS_REG_RE = re.compile(r"-?(((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B[123]|\.H0_H0|\.H1_H1)?)|(UPR|UPT|PR|PT|-?RZ|~?URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
+SASS_REG_RE = re.compile(r"-?(\|?((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B[123]|\.H0_H0|\.H1_H1)?\|?)|(UPR|UPT|PR|PT|-?RZ|~?URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
 SASS_ADDR_RE = re.compile(r"\[(?P<reg1>R[0-9Z]+)(\.(?P<suff>U32|X16))?(\+(?P<reg2>UR[0-9Z]+)|(?P<imm>0x.+))?\]")
 
 CX_RE = re.compile(r"-?cx\[(?P<regbase>.+)\]\[(?P<offset>.+)\]")
@@ -24,7 +24,7 @@ FUNCTION_BEGIN_RE = re.compile(r"\s+Function : (.*)$")
 FUNCTION_END_RE = re.compile(r"\s+\.\.\.\.\.\.\.\.\.\.$")
 
 class SASSRegister(Register):
-    def __init__(self, n, is_inverted = False, is_negated = False, is_reuse = False, suffix = None, is_not = False):
+    def __init__(self, n, is_inverted = False, is_negated = False, is_reuse = False, suffix = None, is_not = False, is_abs = False):
         super().__init__(n)
 
         # todo: reuse, !, .cc
@@ -32,7 +32,9 @@ class SASSRegister(Register):
         self.is_negated = is_negated
         self.is_reuse = is_reuse
         self.is_not = is_not
+        self.is_abs = is_abs # float only?
         self.suffix = suffix
+
 
     def is_constant(self):
         return self.n in CONSTANT_REGS
@@ -55,11 +57,18 @@ class SASSRegister(Register):
     def operand(self, reuse = True):
         n = self.n
 
+        if self.is_abs:
+            n = "|" + n + "|"
+
         if reuse and self.is_reuse:
             n = n + ".reuse"
 
         if self.suffix:
-            n = n + self.suffix
+            sfx = self.suffix.split(".")
+            for ssfx in sfx:
+                if not reuse and ssfx == "reuse": continue
+                if not ssfx: continue
+                n = n + "." + ssfx
 
         if self.is_inverted:
             return "!" + n
@@ -229,6 +238,7 @@ class SASSInstruction(Instruction):
                 is_negated = False
                 is_reuse = False
                 is_not = False
+                is_abs = False
 
                 if " " in a:
                     a = a.split()[0]
@@ -265,11 +275,16 @@ class SASSInstruction(Instruction):
                 if len(suffix) == 0:
                     suffix = None
 
+                if a[0] == "|":
+                    a = a[1:-1]
+                    is_abs = True
+
                 r = SASSRegister(a, is_inverted = is_inverted,
                                  is_negated = is_negated,
                                  is_reuse = is_reuse,
                                  suffix = suffix,
-                                 is_not = is_not)
+                                 is_not = is_not,
+                                 is_abs = is_abs)
 
                 out.append(r)
             else:
