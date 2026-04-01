@@ -20,6 +20,8 @@ UREG_VALUE = re.compile(r"UReg(?P<reg>\d+): (?P<value>0x.+)$")
 CONST_VALUE = re.compile(r"C(?P<size>\d+): (?P<value>0x.+)$")
 REG_VALUE = re.compile(r"Reg(?P<reg>\d+)_T(?P<thread>\d+): (?P<value>0x[a-f0-9]+) ")
 PRED_VALUE = re.compile(r"Pred: (?P<mask>0x[a-f0-9]+) (?P<value>0x[a-f0-9]+)")
+PRED_V2_VALUE = re.compile(r"Pred(?P<reg>\d+): (?P<value>0x[a-f0-9]+)")
+
 UPRED_VALUE = re.compile(r"UPred: (?P<mask>0x[a-f0-9]+) (?P<value>0x[a-f0-9]+)")
 WIDTH_VALUE = re.compile(r"Width: (?P<value>\d+)$")
 
@@ -50,6 +52,7 @@ class InsnData:
         self.uregs = []
         self.constant = None
         self.pred = None
+        self.pred_v2 = {7: ['1']*32} # 7 : PT
         self.upred = None
         self.kernel_idx = kernel_idx
 
@@ -82,6 +85,12 @@ class InsnData:
 
     def set_pred(self, mask, value):
         self.pred = (mask, value)
+
+    def set_pred_v2(self, reg, value):
+        self.pred_v2[reg] = [(reg, idx, v) for idx, v in enumerate(list(reversed(bin(value)[2:])))]
+
+    def get_pred_v2(self, reg):
+        return self.pred_v2[reg]
 
     def __str__(self):
         return f"{self.op_idx} {self.insn}"
@@ -133,9 +142,14 @@ class RawTrace:
                             val = UPRED_VALUE.match(l[2:])
                             insn_data.set_upred(int(val.group('mask'), base=16), int(val.group('value'), base=16))
                         elif ty == 'P':
-                            val = PRED_VALUE.match(l[2:])
-                            insn_data.set_pred(int(val.group('mask'), base=16),
-                                               int(val.group('value'), base=16))
+                            val = PRED_V2_VALUE.match(l[2:])
+                            if val is None:
+                                val = PRED_VALUE.match(l[2:])
+                                insn_data.set_pred(int(val.group('mask'), base=16),
+                                                   int(val.group('value'), base=16))
+                            else:
+                                insn_data.set_pred_v2(int(val.group('reg')),
+                                                      int(val.group('value'), base=16))
                         elif ty == 'U':
                             val = UREG_VALUE.match(l[2:])
                             assert insn_data is not None
@@ -250,7 +264,7 @@ class RawTrace:
                                         ))
                         else:
                             out.append((o.access(), r,
-                                        (lambda num: lambda x: x.get_pred(num))(r.number())
+                                        (lambda num: lambda x: x.get_pred_v2(num))(r.number())
                                         ))
                 elif isinstance(o.operand, str):
                     if (o.operand.startswith('c') or o.operand.startswith('-c')):
@@ -288,14 +302,14 @@ class RawTrace:
             else:
                 raise NotImplementedError(op)
 
-        state = {'RZ': 0}
+        state = {'RZ': [('Z', k, 0) for k in range(32)]}
         writer = {}
         for l in self.parse_kernel_order():
             yield l
             if isinstance(l, KernelData):
-                state = {'RZ': 0, 'URZ': 0, 'PT': 1, 'UPT': 1}
                 kernel_threads = (lambda x: int(x[0])*int(x[1])*int(x[2]))(l.blockdim)
                 if kernel_threads > 32: kernel_threads = 32
+                state = {'RZ': [('Z', k, 0) for k in range(kernel_threads)], 'URZ': 0, 'PT': [('T', k, 1) for k in range(kernel_threads)], 'UPT': 1}
 
             if isinstance(l, InsnData):
                 writes = []
@@ -345,7 +359,7 @@ def get_observations(trace):
             val = args[2]
 
             if isinstance(val, list):
-                if len(val[0]) == 3:
+                if len(val[0]) == 3: # (idx, tidx, val)
                     val = [x[2] for x in val]
             elif isinstance(val, (int, str)):
                 # note: this is incorrect for predicate registers
