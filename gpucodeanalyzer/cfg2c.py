@@ -48,6 +48,8 @@ def main():
 
             for fn in addlxd:
                 xlatinfo[fn].update(addlxd[fn])
+                if 'addl_constant_map' in addlxd[fn]:
+                    xlatinfo[fn]['constant_map'].update(addlxd[fn]['addl_constant_map'])
 
     config = set()
     if args.path_info:
