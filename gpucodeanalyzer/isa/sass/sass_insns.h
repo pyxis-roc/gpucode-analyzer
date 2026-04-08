@@ -50,6 +50,7 @@ static uint32_t FROM_FLOAT(float f) {
 
 // TODO: RP
 #define I2F_RP(dst, src) dst = FROM_FLOAT((float) src)
+#define I2F_U32_RP(dst, src) dst = FROM_FLOAT((float) src)
 
 // TODO
 #define MUFU_RCP(dst, src) dst = FROM_FLOAT((1.0 / AS_FLOAT(src)))
@@ -78,10 +79,30 @@ static uint32_t FROM_FLOAT(float f) {
 #define BRA_PRED(pred, label) if(pred) goto label
 #define CALL_REL_NOINC(label) goto label
 
+#define FSETP_GEU_AND_D0(dst0, dst1, src1, src2, src3) if(!isnan(AS_FLOAT(src1)) && !isnan(AS_FLOAT(src2))) { dst0 = (AS_FLOAT(src1) >= AS_FLOAT(src2)) && src3; } else dst0 = true;
+#define FSETP_GEU_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
+
+#define FSETP_NEU_AND_D0(dst0, dst1, src1, src2, src3) if(!isnan(AS_FLOAT(src1)) && !isnan(AS_FLOAT(src2))) { dst0 = (AS_FLOAT(src1) != AS_FLOAT(src2)) && src3; } else dst0 = true;
+#define FSETP_NEU_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
+
+#define FSETP_GTU_FTZ_AND_D0(dst0, dst1, src1, src2, src3) if(!isnan(AS_FLOAT(src1)) && !isnan(AS_FLOAT(src2))) { dst0 = (FTZ(AS_FLOAT(src1)) >= FTZ(AS_FLOAT(src2))) && src3; } else dst0 = true;
+#define FSETP_GTU_FTZ_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
+
+#define FSETP_GT_AND_D0(dst0, dst1, src1, src2, src3) dst0 = (AS_FLOAT(src1) > AS_FLOAT(src2)) && src3
+#define FSETP_GT_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
+
+
+#define ISETP_LT_OR_D0(dst0, dst1, src1, src2, src3) dst0 = ((int32_t) src1 < (int32_t) src2) || src3
+
+#define ISETP_LT_OR_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
+
 #define ISETP_GE_OR_D0(dst0, dst1, src1, src2, src3) dst0 = ((int32_t) src1 >= (int32_t) src2) || src3
 
 #define ISETP_GT_AND_D0(dst0, dst1, src1, src2, src3) dst0 = ((int32_t) src1 > (int32_t) src2) && src3
 #define ISETP_GT_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
+
+#define ISETP_GE_AND_EX_D0(dst0, dst1, src1, src2, src3, src4) dst0 = src4 && (((int32_t) src1 >= (int32_t) src2) && src3)
+#define ISETP_GE_AND_EX_D1(dst0, dst1, src1, src2, src3, src4) dst1 = !dst0
 
 #define ISETP_LT_AND_D0(dst0, dst1, src1, src2, src3) dst0 = ((int32_t) src1 < (int32_t) src2) && src3
 #define ISETP_LT_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
@@ -133,8 +154,12 @@ static uint32_t FROM_FLOAT(float f) {
 #define PLOP3_LUT(dst1, dst2, src1, src2, src3, immLut, src4) dst1 = logical_op3(src1, src2, src3, immLut)
 
 #define CS2R(dst, src) dst = src
+
+#define IMNMX(dst, src1, src2, mnpred) if(mnpred) { dst = src1 < src2 ? src1 : src2; } else { dst = src1 > src2 ? src1 : src2; } // TODO
+
 #define IMNMX_U32(dst, src1, src2, mnpred) if(mnpred) { dst = src1 < src2 ? src1 : src2; } else { dst = src1 > src2 ? src1 : src2; } // TODO
 #define ULDC(dst, src) dst = src
+#define ULDC_S8(dst, src) dst = (int8_t) (src & 0xff);
 #define ULDC_64(dst1, dst2, src) dst2 = (src & 0xffffffffL); dst1 = (src >> 32)
 
 
@@ -157,6 +182,7 @@ static uint32_t FROM_FLOAT(float f) {
 #define USEL(dst, src1, src2, pred) SEL(dst, src1, src2, pred)
 
 #define LEA(dst, src, b, imm_shift) dst = (src << imm_shift) + b
+#define ULEA(dst, src, b, imm_shift) LEA(dst, src, b, imm_shift)
 
 #define LEA_HI(dst, alo, b, ahi, imm_shift) dst = ((concat_u32(ahi, alo) << imm_shift) >> 32) + b
 

@@ -1,5 +1,8 @@
 from .sass import SASSRegister
 from itertools import chain
+import re
+
+DECIMAL_RE = re.compile(r'-?[0-9]+')
 
 class XlatInfo:
     def __init__(self, data):
@@ -362,8 +365,18 @@ class SASS2C:
                             return None
                     elif a == 'PR':
                         o.append(a)
+                    elif a == "PT" or a == "!PT":
+                        # TODO: why is PT still a string?
+                        o.append(a)
+                    elif a == "+INF ":
+                        o.append('INFINITY')
+                    elif a == "-INF ":
+                        o.append('-INFINITY')
+                    elif DECIMAL_RE.match(a):
+                        o.append(f'(sass_reg) {a}')
                     else:
-                        raise NotImplementedError(a)
+                        # non-local lookup for i
+                        raise NotImplementedError(f"Argument {a} for {i.opcode}")
 
             return ', '.join(o)
 
@@ -402,10 +415,14 @@ class SASS2C:
             opcode = "ULOP3_LUT"
             assert i.args[-1] == "!UPT", i.args[-1]
             args = process_args(i.args[:-1])
+        elif i.opcode == "IMNMX":
+            opcode = "IMNMX"
         elif i.opcode == "IMNMX.U32":
             opcode = "IMNMX_U32"
         elif i.opcode == "I2F.RP":
             opcode = "I2F_RP"
+        elif i.opcode == "I2F.U32.RP":
+            opcode = "I2F_U32_RP"
         elif i.opcode == "MUFU.RCP":
             opcode = "MUFU_RCP"
         elif i.opcode == "F2I.FTZ.U32.TRUNC.NTZ":
@@ -414,8 +431,8 @@ class SASS2C:
             opcode = "ULDC"
         elif i.opcode == "ULEA.HI":
             opcode = "ULEA_HI"
-        elif i.opcode == "LEA":
-            opcode = "LEA"
+        elif i.opcode in {"LEA", "ULEA"}:
+            opcode = i.opcode
         elif i.opcode == "LEA.HI":
             opcode = "LEA_HI"
         elif i.opcode == "LEA.HI.SX32":
@@ -429,6 +446,15 @@ class SASS2C:
             assert i.args[1] == "PR"
             assert i.args[2].n == "RZ"
             args = process_args(i.args[:3]) + ", " + _decode_regset_imm(i.args[3])
+        elif i.opcode == "ULDC.S8":
+            args = process_args([i.args[1]])
+            if args is not None:
+                if args[0] == "&":
+                    opcode = None
+                    args = None
+                else:
+                    opcode = "ULDC_S8"
+                    args = process_args(i.args)
         elif i.opcode == "ULDC.64": # usually an address
             args = process_args([i.args[1]])
             if args is not None:
@@ -438,6 +464,12 @@ class SASS2C:
                 else:
                     opcode = "ULDC_64"
                     args = process_args(i.args, expand_dst_adj = 1)
+        elif i.opcode.startswith("FSETP."):
+            cvtop = i.opcode.replace('.', '_')
+            opcode = [cvtop + "_D0"]
+            assert i.args[0] != "PT"
+            if isinstance(i.args[1], SASSRegister) and i.args[1].n != "PT": # can't write to constant register
+                opcode.append(cvtop + "_D1")
 
         elif i.opcode.startswith("ISETP."):
             cvtop = i.opcode.replace('.', '_')
@@ -445,6 +477,7 @@ class SASS2C:
             assert i.args[0] != "PT"
             if isinstance(i.args[1], SASSRegister) and i.args[1].n != "PT": # can't write to constant register
                 opcode.append(cvtop + "_D1")
+
         elif i.opcode.startswith("UISETP."):
             cvtop = i.opcode.replace('.', '_')
             opcode = [cvtop + "_D0"]
@@ -478,6 +511,8 @@ class SASS2C:
             opcode = "SHF_R_S32_HI"
         elif i.opcode == "USHF.R.S32.HI":
             opcode = "USHF_R_S32_HI"
+        elif i.opcode == "SHF.L.U32":
+            opcode = "SHF_L_U32"
         elif i.opcode == "USHF.L.U32":
             opcode = "USHF_L_U32"
         else:
