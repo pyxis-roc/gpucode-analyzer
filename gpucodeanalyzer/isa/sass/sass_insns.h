@@ -98,6 +98,13 @@ static uint32_t FROM_FLOAT(float f) {
 
 #define ISETP_GE_OR_D0(dst0, dst1, src1, src2, src3) dst0 = ((int32_t) src1 >= (int32_t) src2) || src3
 
+#define ISETP_GE_OR_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
+
+#define ISETP_NE_OR_D0(dst0, dst1, src1, src2, src3) dst0 = ((int32_t) src1 != (int32_t) src2) || src3
+#define ISETP_NE_OR_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
+
+
+
 #define ISETP_GT_AND_D0(dst0, dst1, src1, src2, src3) dst0 = ((int32_t) src1 > (int32_t) src2) && src3
 #define ISETP_GT_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
 
