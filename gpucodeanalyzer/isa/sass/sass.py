@@ -7,7 +7,7 @@ from ...def_use import DefUseAnalysis
 
 SASS_INSN_RE = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.+) ;(\s*/\* 0x([0-9a-f]+) \*/)?$")
 SASS_REG_RE = re.compile(r"-?(\|?((UR|R|!?P|B|!?UP)\d+)(\.reuse|\.B[123]|\.H0_H0|\.H1_H1)?\|?)|(UPR|UPT|PR|PT|-?RZ|~?URZ|SRZ|SR_CTAID\.?|SR_TID\.?)")
-SASS_ADDR_RE = re.compile(r"\[(?P<reg1>R[0-9Z]+)(\.(?P<suff>U32|X16))?(\+(?P<reg2>UR[0-9Z]+)|(?P<imm>0x.+))?\]")
+SASS_ADDR_RE = re.compile(r"\[(?P<reg1>R[0-9Z]+)(\.(?P<suff>U32|X16|64))?(\+(?P<reg2>UR[0-9Z]+)|(?P<imm>0x.+))?\]")
 
 CX_RE = re.compile(r"-?cx\[(?P<regbase>.+)\]\[(?P<offset>.+)\]")
 C_RE = re.compile(r"-?c\[(?P<bank>.+)\]\[(?P<regoffset>U?R\d+).*\]")
@@ -123,6 +123,9 @@ class SASSAddress(Memory):
         if self.reg2:
             out.append(self.reg2)
 
+        if self.suff == "64":
+            out.extend(self.reg1.adjacent(1))
+
         return out
 
 class SASSOperand(Operand):
@@ -151,6 +154,7 @@ class SASSInstruction(Instruction):
                     'LDG.E.128.CONSTANT': {0: 4},
                     'LDG.E.LTC128B.CONSTANT': {0: 4},
                     'LDG.E.128': {0: 4},
+                    'LDG.E.64': {0: 2},
 
                     'LDL.LU.64': {0: 2},
                     'LDL.64': {0: 2},
