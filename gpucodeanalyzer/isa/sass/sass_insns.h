@@ -42,6 +42,15 @@ static uint32_t FROM_FLOAT(float f) {
   return x.i;
 }
 
+static uint32_t READ_U32(uint8_t *addr) {
+  return *((uint32_t *) addr);
+}
+
+static uint64_t READ_U64(uint8_t *addr) {
+  return *((uint64_t *) addr);
+}
+
+
 #define S2R(dst, src) dst = src
 #define S2UR(dst, src) dst = src
 
@@ -108,6 +117,9 @@ static uint32_t FROM_FLOAT(float f) {
 #define ISETP_GT_AND_D0(dst0, dst1, src1, src2, src3) dst0 = ((int32_t) src1 > (int32_t) src2) && src3
 #define ISETP_GT_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
 
+#define ISETP_NE_AND_EX_D0(dst0, dst1, src1, src2, src3, src4) dst0 = src4 && (((int32_t) src1 != (int32_t) src2) && src3)
+#define ISETP_NE_AND_EX_D1(dst0, dst1, src1, src2, src3, src4) dst1 = !dst0
+
 #define ISETP_GE_AND_EX_D0(dst0, dst1, src1, src2, src3, src4) dst0 = src4 && (((int32_t) src1 >= (int32_t) src2) && src3)
 #define ISETP_GE_AND_EX_D1(dst0, dst1, src1, src2, src3, src4) dst1 = !dst0
 
@@ -136,9 +148,16 @@ static uint32_t FROM_FLOAT(float f) {
 #define ISETP_EQ_U32_AND_D0(dst0, dst1, src1, src2, src3) dst0 = (src1 == src2) && src3
 #define ISETP_EQ_U32_AND_D1(dst0, dst1, src1, src2, src3) dst1 = !dst0
 
+#define UISETP_GE_AND_D0(dst0, dst1, src1, src2, src3) ISETP_GE_AND_D0(dst0, dst1, src1, src2, src3)
+#define UISETP_GE_AND_D1(dst0, dst1, src1, src2, src3) ISETP_GE_AND_D1(dst0, dst1, src1, src2, src3)
+
 
 #define UISETP_GE_U32_AND_D0(dst0, dst1, src1, src2, src3) ISETP_GE_U32_AND_D0(dst0, dst1, src1, src2, src3)
 #define UISETP_GE_U32_AND_D1(dst0, dst1, src1, src2, src3) ISETP_GE_U32_AND_D1(dst0, dst1, src1, src2, src3)
+
+
+#define UISETP_GT_AND_D0(dst0, dst1, src1, src2, src3) ISETP_GT_AND_D0(dst0, dst1, src1, src2, src3)
+#define UISETP_GT_AND_D1(dst0, dst1, src1, src2, src3) ISETP_GT_AND_D1(dst0, dst1, src1, src2, src3)
 
 #define UISETP_GT_U32_AND_D0(dst0, dst1, src1, src2, src3) ISETP_GT_U32_AND_D0(dst0, dst1, src1, src2, src3)
 #define UISETP_GT_U32_AND_D1(dst0, dst1, src1, src2, src3) ISETP_GT_U32_AND_D1(dst0, dst1, src1, src2, src3)
