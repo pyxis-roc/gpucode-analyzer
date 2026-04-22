@@ -5,6 +5,8 @@ class SASSClassifier:
     def classify(self, insn):
         if insn.opcode.startswith("IMAD") or insn.opcode.startswith("IADD"):
             return "int-arithmetic"
+        elif insn.opcode.startswith("IMNMX"):
+            return "int-arithmetic" # logical?
         elif insn.opcode.startswith("IABS"): # or insn.opcode.startswith("IADD"):
             return "int-arithmetic"
         elif insn.opcode.startswith("MUFU."): # or insn.opcode.startswith("IADD"):
@@ -13,6 +15,10 @@ class SASSClassifier:
             return "fp-arithmetic"
         elif insn.opcode.startswith('UIADD3.') or insn.opcode == 'UIADD3':
             return "int-arithmetic-uniform"
+        elif insn.opcode.startswith('UIMAD'):
+            return "int-arithmetic-uniform"
+        elif insn.opcode.startswith("LD."):
+            return f"memory-read/global/32"
         elif insn.opcode.startswith("LDG."):
             if ".128." in insn.opcode or insn.opcode.endswith('.128'):
                 sz = '/16'
@@ -90,14 +96,18 @@ class SASSClassifier:
             return "control"
         elif insn.opcode.startswith("ISETP.") or insn.opcode.startswith("UISETP."):
             return "logical"
+        elif insn.opcode.startswith("FSETP."):
+            return "logical/float"
         elif insn.opcode.startswith("PLOP3.") or insn.opcode.startswith("ULOP3."):
             return "logical"
         elif insn.opcode.startswith("LOP3."):
             return "int-arithmetic"
         elif insn.opcode.startswith("MOV.") or insn.opcode == "SEL" or insn.opcode == "USEL" or insn.opcode.startswith("UMOV.") or insn.opcode == "MOV" or insn.opcode == "UMOV" or insn.opcode == "P2R":
             return "register-to-register"
-        elif insn.opcode in {'CS2R','S2R','R2P','S2UR'}:
+        elif insn.opcode in {'CS2R','S2R','R2P','S2UR','R2UR'}:
             return "register-to-register"
+        elif insn.opcode.startswith("SHFL."):
+            return 'warp'
         elif insn.opcode.startswith("SHF."):
             return "int-arithmetic"
         elif insn.opcode.startswith("USHF."):
@@ -148,6 +158,8 @@ class SASSClassifier:
             return {}
         elif cls == 'logical':
             return {}
+        elif cls == 'logical/float':
+            return {}
         elif cls.startswith('memory-uniform'):
             return {} # TODO
         elif cls == 'int-arithmetic-uniform':
@@ -161,9 +173,11 @@ class SASSClassifier:
         elif cls == 'conversion/float-to-float':
             return {'conversion': 32}
         elif cls == 'fp-arithmetic':
-            return {'fp-arithmetic': 32} 
+            return {'fp-arithmetic': 32}
         elif cls == 'tc-arithmetic/fp16':
             return {'fp16-arithmetic': (7*32)} # TODO: actual count
+        elif cls == 'warp':
+            return {'warp': 1}
         else:
             print("Unhandled in intensity", cls)
             return {}
