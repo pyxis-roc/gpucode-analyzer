@@ -14,9 +14,13 @@ class SASSClassifier:
         elif insn.opcode.startswith('UIADD3.') or insn.opcode == 'UIADD3':
             return "int-arithmetic-uniform"
         elif insn.opcode.startswith("LDG."):
-            if ".128." in insn.opcode:
+            if ".128." in insn.opcode or insn.opcode.endswith('.128'):
                 sz = '/16'
             elif insn.opcode == 'LDG.E.CONSTANT':
+                sz = '/32'
+            elif insn.opcode == 'LDG.E.64':
+                sz = '/64'
+            elif insn.opcode == 'LDG.E':
                 sz = '/32'
             else:
                 assert False, insn.opcode # NotImplemented
@@ -70,7 +74,7 @@ class SASSClassifier:
                 sz = '8'
             else:
                 sz = '4'
-                assert False, insn.opcode
+                #assert False, insn.opcode
 
             return f"memory-uniform/constant/{sz}"
         elif insn.opcode.startswith("LDSM."):
