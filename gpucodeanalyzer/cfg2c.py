@@ -55,6 +55,16 @@ def main():
     if args.path_info:
         config.add('gen_path_info')
 
+    if args.func_name is None:
+        if len(metadata) == 1:
+            args.func_name = list(metadata.keys())[0]
+    else:
+        print("ERROR: Multiple functions present, use -f to select one")
+        for k in metadata:
+            print(k)
+
+        sys.exit(1)
+
     with open(args.output, "w") as f:
         op = disp.converter()(f, xlatinfo, config=config)
         op.init_module()
