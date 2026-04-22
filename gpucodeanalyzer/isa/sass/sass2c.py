@@ -567,6 +567,7 @@ class SASS2C:
             if not self.xlat_insn(i, self.func_name,
                                   self.invoke_pre_hooks, self.invoke_post_hooks):
                 self.output.write(f"    // {i.label} {i.insn}\n")
+                self.output.write("     assert(0);\n")
 
         self.output.write("\n")
 
