@@ -310,9 +310,20 @@ class RawTrace:
                 # nvbit doesn't know CS2R with SRZ writes two registers
                 print("WARNING: ", insn_data.insn, "mismatch")
 
-            assert ureg_ptr == len(insn_data.uregs), insn_data.insn
+            if ureg_ptr != len(insn_data.uregs):
+                if not (insn_data.insn.startswith('UIMAD.WIDE')):
+                    print(f"{insn_data.insn} {ureg_ptr} {len(insn_data.uregs)},{insn_data.uregs}")
+                    assert False
+
+                # nvbit doesn't know UIMAD.WIDE
+                print("WARNING: ", insn_data.insn, "mismatch", insn_data.uregs)
+
             self._anno_cache[insn_data.insn] = out
 
+
+        # temporary fix for older traces.
+        if insn_data.insn.startswith('UIMAD.WIDE') and (len(insn_data.uregs) == 4):
+            insn_data.uregs.insert(1, (None, None))
 
         if insn_data.insn.startswith('CS2R') and insn_data.insn.endswith('SRZ'):
             insn_data.regs.append(insn_data.regs[0])
