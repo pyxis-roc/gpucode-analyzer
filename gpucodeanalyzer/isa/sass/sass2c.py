@@ -72,6 +72,8 @@ class XlatInfo:
                         sztype = 'uint32_t'
                     elif sz == 8:
                         sztype = 'uint64_t' # could also be pointer
+                    elif sz > 8:
+                        sztype = f'uint8_t[{sz}]'
                     else:
                         raise NotImplementedError(f'Unknown argument size {sz}')
 
@@ -318,7 +320,8 @@ class SASS2C:
                 elif cl == "c[0x0][0xc]":
                     return neg + "GRID_DIM.X" # cuda
 
-                assert mc is not None, f"{fn} {cl}"
+                mc = cl
+                #assert mc is not None, f"{fn} {cl}"
 
             return neg + mc
 
