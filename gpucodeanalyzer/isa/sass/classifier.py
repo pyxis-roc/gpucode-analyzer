@@ -3,6 +3,9 @@ class SASSClassifier:
         pass
 
     def classify(self, insn):
+        if insn.predicate and insn.predicate == '!PT':
+            return "nop"
+
         if insn.opcode.startswith("IMAD") or insn.opcode.startswith("IADD"):
             return "int-arithmetic"
         elif insn.opcode.startswith("IMNMX"):
