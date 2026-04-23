@@ -21,7 +21,7 @@ def raw_instruction_counts(cfg, fncounts, classifier, output = None):
                 print(i.label, i.insn, "*", countinfo.count, "*", " ".join(cls),
                       file=output)
 
-def get_instruction_counts(cfg, fncounts, classifier, output = None):
+def get_instruction_counts(cfg, fncounts, classifier, output = None, ignore_predicated = False):
     class_count = {}
     intensity = {}
 
@@ -32,6 +32,8 @@ def get_instruction_counts(cfg, fncounts, classifier, output = None):
         else:
             countinfo = fncounts[b.target()]
             for i in b.code:
+                if ignore_predicated and i.predicate: continue
+
                 lcls = classifier.classify(i)
                 if not isinstance(lcls, list):
                     lcls = [lcls]
@@ -47,6 +49,9 @@ def get_instruction_counts(cfg, fncounts, classifier, output = None):
 
                     if cls == "unknown":
                         print(i.label, i.insn, countinfo.count, cls)
+
+    class_count = dict(sorted(class_count.items()))
+    intensity = dict(sorted(intensity.items()))
 
     print(json.dumps({'class': class_count,
                       'operation': intensity},
@@ -84,6 +89,7 @@ def main():
     p.add_argument("--fn", help="Function to slice (if multiple)")
     p.add_argument("--raw", action="store_true", help="Output raw counts")
     p.add_argument("-o", dest="output", help="Output file")
+    p.add_argument("--ip", dest="ignore_predicated", action="store_true", help="Do not count predicated instructions")
 
     args = p.parse_args()
 
@@ -106,7 +112,7 @@ def main():
         if args.raw:
             raw_instruction_counts(cfg, counts[fn], clsfy, output)
         else:
-            get_instruction_counts(cfg, counts[fn], clsfy, output)
+            get_instruction_counts(cfg, counts[fn], clsfy, output, args.ignore_predicated)
 
 if __name__ == "__main__":
     main()
