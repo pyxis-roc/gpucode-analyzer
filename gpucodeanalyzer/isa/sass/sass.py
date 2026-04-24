@@ -1,6 +1,9 @@
 import re
 from ...generic_cfg import Instruction, ControlInsn, Register, Memory, Operand
 from ...def_use import DefUseAnalysis
+from sassparser import sass_parse
+import sassparser.sassast as sa
+from sassparser.sasstokens import Hexadecimal
 
 # assemblies extracted from nvuc files are "bare" with no function name and have one function.
 # assemblies dumped from cuobjdump usually have function name information and are multiple functions.
@@ -13,7 +16,8 @@ CX_RE = re.compile(r"-?cx\[(?P<regbase>.+)\]\[(?P<offset>.+)\]")
 C_RE = re.compile(r"-?c\[(?P<bank>.+)\]\[(?P<regoffset>U?R\d+).*\]")
 
 CONSTANT_REGS = set(['RZ', 'SRZ', 'URZ', 'PT', 'UPT', 'SR_TID.X', 'SR_CTAID.X',
-                     'SR_TID.Y', 'SR_TID.Z', 'SR_CTAID.Y', 'SR_CTAID.Z'
+                     'SR_TID.Y', 'SR_TID.Z', 'SR_CTAID.Y', 'SR_CTAID.Z',
+                     'SR_CgaCtaId', 'SR_SWINHI', 'SR_LANEID',
                      ])
 
 REG_NUMBER = re.compile(r'(?P<prefix>[^0-9]+)(?P<num>\d+|T)$')
@@ -107,12 +111,78 @@ class SASSRegister(Register):
 
         return [SASSRegister(f"{pfx}{n}") for n in range(r+1, r+adj+1)]
 
+    @staticmethod
+    def from_operand(operand):
+        r = SASSRegister.from_sa_register(operand.value)
+
+        r.is_inverted = operand.inv
+        r.is_negated = operand.neg
+        r.is_not = operand.not_
+        r.is_abs = operand.abs
+        r.is_reuse = any(x == '.reuse' for x in operand.mods)
+
+        r.suffix = "".join(operand.mods)
+        r.suffixes = operand.mods
+
+        r._parsed = operand
+        return r
+
+    @staticmethod
+    def from_sa_register(reg):
+        if isinstance(reg, sa.Register):
+            name = reg.prefix + str(reg.id_)
+        elif isinstance(reg, sa.SysRegister):
+            name = reg.name + (reg.component if reg.component else '')
+        else:
+            raise NotImplementedError
+
+        x = SASSRegister(name)
+        x._parsed = reg
+        x.suffixes = []
+        return x
+
+
+def offset_helper(offset):
+    regs = []
+    imm = None
+
+    if not isinstance(offset, list):
+        if isinstance(offset, Hexadecimal):
+            imm = offset.raw
+        else:
+            raise NotImplementedError(offset)
+
+        return regs, imm
+
+    for x in offset:
+        if isinstance(x, sa.Register):
+            regs.append(SASSRegister.from_sa_register(x))
+        elif isinstance(x, sa.Immediate):
+            assert imm is None
+            imm = x.value
+        elif isinstance(x, sa.Operand):
+            assert isinstance(x.value, sa.Register)
+            regs.append(SASSRegister.from_operand(x))
+        elif isinstance(x, Hexadecimal):
+            assert imm is None
+            imm = x.value
+        else:
+            raise NotImplementedError(x)
+
+    return regs, imm
+
 class SASSAddress(Memory):
     def __init__(self, addr, reg1, suff, reg2, imm):
         self.addr = addr
-        self.reg1 = SASSRegister(reg1)
-        self.suff = suff
-        self.reg2 = SASSRegister(reg2) if reg2 else None
+        self.reg1 = SASSRegister(reg1) if not isinstance(reg1, SASSRegister) else reg1
+
+        #self.suff = suff # ignore for now
+
+        if reg2:
+            self.reg2 = SASSRegister(reg2) if not isinstance(reg2, SASSRegister) else reg2
+        else:
+            self.reg2 = None
+
         self.imm = imm
 
     def __str__(self):
@@ -123,13 +193,146 @@ class SASSAddress(Memory):
         if self.reg2:
             out.append(self.reg2)
 
-        if self.suff == "64":
-            out.extend(self.reg1.adjacent(1))
+        adj = []
+        for x in out:
+            if ".64" in x.suffixes:
+                adj.extend(x.adjacent(1))
+        out.extend(adj)
 
         return out
 
+    @staticmethod
+    def from_operand(operand):
+        av = operand.value
+        regs = []
+        imm = None
+
+        if isinstance(av, sa.MemRef):
+            regs, imm = offset_helper(av.offset)
+        else:
+            raise NotImplementedError(av)
+
+        x = SASSAddress(operand, regs[0] if len(regs) else None, None, regs[1] if len(regs) > 1 else None, imm)
+        return x
+
+
+class SASSConstantRef(Memory):
+    def __init__(self, ty, bank, offset, suffixes):
+        self.ty = ty
+
+        self.bank = bank
+        assert not any(isinstance(x, sa.Register) for x in [bank])
+
+        self.offset = offset
+        self.suffixes = suffixes
+
+        #TODO: pos, abs, inv?
+
+
+    def registers(self):
+        out = [x for x in self.offset if isinstance(x, SASSRegister)]
+        out.extend([x.adjacent(1) for x in self.offset if isinstance(x, SASSRegister) and '.64' in x.suffixes])
+        return out
+
+    @staticmethod
+    def from_operand(operand):
+        av = operand.value
+        if isinstance(av, sa.ConstantRef):
+            ty = 'c' if av.ty == 'c[' else 'cx'
+        else:
+            raise NotImplementedError
+
+        regs, imm = offset_helper(av.offset)
+
+        if imm is not None:
+            regs.append(imm)
+
+        r = SASSConstantRef(ty,
+                            bank = av.bank,
+                            offset = regs,
+                            suffixes = operand.mods,
+                            )
+
+        # TODO
+        # this should be obtained from _parsed
+        # assert not (operand.pos or operand.abs or operand.inv or operand.not_), operand
+
+        r._parsed = operand
+        return r
+
+class SASSMemdescRef(Memory):
+    def __init__(self, reg, offset):
+        self.reg = reg
+        self.offset = offset
+
+    def registers(self):
+        raise NotImplementedError
+
+    @staticmethod
+    def from_operand(operand):
+        if operand.value.offset:
+            regs, imm = offset_helper(operand.value.offset)
+            if imm: regs.append(imm)
+        else:
+            regs = []
+
+        x = SASSMemdescRef(SASSRegister.from_sa_register(operand.value.reg),
+                          offset = regs)
+        x._parsed = operand
+        return x
+
+class SASSGdescRef(Memory):
+    def __init__(self, reg, mods):
+        self.reg = reg
+        self.mods = mods
+
+    def registers(self):
+        raise NotImplementedError
+
+    @staticmethod
+    def from_operand(operand):
+        x = SASSGdescRef(SASSRegister.from_sa_register(operand.value.reg),
+                         mods = operand.value.mods)
+        x._parsed = operand
+        return x
+
+class SASSTmemRef(Memory):
+    def __init__(self, reg, offset):
+        self.reg = reg
+        self.offset = offset
+
+    def registers(self):
+        raise NotImplementedError
+
+    @staticmethod
+    def from_operand(operand):
+        if operand.value.offset:
+            regs, imm = offset_helper(operand.value.offset)
+            if imm: regs.append(imm)
+        else:
+            regs = []
+
+        x = SASSTmemRef(SASSRegister.from_sa_register(operand.value.reg),
+                        offset = regs)
+        x._parsed = operand
+        return x
+
+class SASSIdescRef(Memory):
+    def __init__(self, reg):
+        self.reg = reg
+
+    def registers(self):
+        raise NotImplementedError
+
+    @staticmethod
+    def from_operand(operand):
+        x = SASSIdescRef(SASSRegister.from_sa_register(operand.value.reg))
+        x._parsed = operand
+        return x
+
 class SASSOperand(Operand):
     pass
+
 
 class SASSInstruction(Instruction):
     # has multiple explicit write registers
@@ -226,13 +429,8 @@ class SASSInstruction(Instruction):
 
     READ_WRITE = {'IMAD.HI.U32': {0}}
 
-    def __init__(self, pc, pred, opcode, args, insn):
-        self.label = pc
-        self.predicate = pred
-        self.opcode = opcode
-        self.args = args
-        self.insn = insn
 
+    def _oldparser(self):
         out = []
         for a in self.args:
             m = SASS_REG_RE.match(a)
@@ -302,7 +500,52 @@ class SASSInstruction(Instruction):
                 else:
                     out.append(a)
 
-        self.args = out
+        return out
+
+
+    def _newparser(self):
+        out = []
+        if self.args is not None:
+            for a in self.args:
+                if isinstance(a.value, (sa.Register, sa.SysRegister)):
+                    out.append(SASSRegister.from_operand(a))
+                elif isinstance(a.value, sa.ConstantRef):
+                    out.append(SASSConstantRef.from_operand(a))
+                elif isinstance(a.value, sa.Immediate):
+                    if isinstance(a.value.value, Hexadecimal):
+                        out.append(str(a.value.value.raw))
+                    elif isinstance(a.value, sa.Immediate):
+                        out.append(a.value.value)
+                    else:
+                        raise NotImplementedError(a.value)
+                elif isinstance(a.value, sa.MemRef):
+                    out.append(SASSAddress.from_operand(a))
+                elif isinstance(a.value, sa.MemdescRef):
+                    out.append(SASSMemdescRef.from_operand(a))
+                elif isinstance(a.value, sa.GdescRef):
+                    out.append(SASSGdescRef.from_operand(a))
+                elif isinstance(a.value, sa.TmemRef):
+                    out.append(SASSTmemRef.from_operand(a))
+                elif isinstance(a.value, sa.IdescRef):
+                    out.append(SASSIdescRef.from_operand(a))
+                else:
+                    print(self.insn)
+                    raise NotImplementedError(a)
+
+        return out
+
+    def __init__(self, pc, pred, opcode, args, insn, parsed_args = False):
+        self.label = pc
+        self.predicate = pred
+        self.opcode = opcode
+        self.args = args
+        self.insn = insn
+
+        # sass-parsed args
+        if not parsed_args:
+            self.args = self._oldparser()
+        else:
+            self.args = self._newparser()
 
     def __str__(self):
         return f"{self.label}: {self.predicate if self.predicate else ''} {self.opcode} {self.args} {self.reads()} {self.writes()}"
@@ -553,6 +796,8 @@ class SASSFile:
         codes = {}
         ff = None
         function = None
+        pfn = self._mkinsn2
+
         with open(sassfile, "r") as f:
             for l in f:
                 if state == 'out':
@@ -563,14 +808,14 @@ class SASSFile:
                         ff = ff or function
                         continue
 
-                    insn = self._mkinsn(l, function)
+                    insn = pfn(l, function)
                     if insn is not None:
                         function = None
                         state == 'in'
                         code.append(insn)
                         continue
                 elif state == 'in':
-                    insn = self._mkinsn(l, function)
+                    insn = pfn(l, function)
                     if insn is None:
                         m = FUNCTION_END_RE.match(l)
                         if m:
@@ -598,6 +843,28 @@ class SASSFile:
 
         if len(self.code) == 0 or len(self.codes) == 0:
             print(f"WARNING:sass: No instructions matched in {sassfile}")
+
+    def _mkinsn2(self, sassinsn, fn_name = None):
+        r = sass_parse(sassinsn)
+        if r is None: return
+
+        pc = r.addr
+        pred, o, a, aast = r.pred[1:] if r.pred else None, r.opcode, r.operands, r.ast
+        insn = r.opcode + ((" " + r.operands) if r.operands else "")
+
+        if SASSFile.SASS_CONTROL_INSN.match(o):
+            i = SASSControlInsn(pc, pred, o, aast, insn, parsed_args = True)
+        else:
+            i = SASSInstruction(pc, pred, o, aast, insn, parsed_args = True)
+
+        if i.is_control() and i.is_indirect() and i.opcode == "BRX":
+            assert self.metadata is not None, 'Code contains BRX and metadata about indirect branches must be provided'
+            assert fn_name is not None, f'Multiple functions present, but current function unknown'
+            brx = self.metadata[fn_name].get('EIATTR_INDIRECT_BRANCH_TARGETS', {})
+            assert i.label in brx, f'No indirect targets for {i.label} found'
+            i.indirect_targets = brx[i.label]
+
+        return i
 
     def _mkinsn(self, sassinsn, fn_name = None):
         m = SASS_INSN_RE.match(sassinsn)
