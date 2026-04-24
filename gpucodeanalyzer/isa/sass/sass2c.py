@@ -1,6 +1,7 @@
-from .sass import SASSRegister
+from .sass import SASSRegister, SASSConstantRef
 from itertools import chain
 import re
+from sassparser import AST2SASS
 
 DECIMAL_RE = re.compile(r'-?[0-9]+')
 
@@ -203,6 +204,7 @@ class SASS2C:
         self.xlatinfo = XlatInfo(xlatinfo)
         self.hooks = [DebugOutputInsnHook()]
         self.block_hooks = []
+        self.a2s = AST2SASS()
 
         if ('gen_path_info' in self.config):
             self.block_hooks.append(PathTraceBlockHook())
@@ -304,12 +306,10 @@ class SASS2C:
         self.causes[cause] = self.causes.get(cause, 0) + 1
 
     def xlat_insn(self, i, fn, pre_hook = None, post_hook = None):
-        def process_c_lookup(cl):
-            if cl[0] == '-':
-                neg = "-"
-                cl = cl[1:]
-            else:
-                neg = ""
+        def process_c_lookup(ccl):
+            neg = "-" if ccl._parsed.neg else ""
+            cl = self.a2s.visit(ccl._parsed)
+            if neg: cl = cl[1:]
 
             mc = self.xlatinfo.map_constant(fn, cl)
 
@@ -349,37 +349,27 @@ class SASS2C:
                     o.append(a.operand(reuse=False))
                     if ndx == 0 and expand_dst_adj:
                         o.extend([aa.operand(reuse=False) for aa in a.adjacent(expand_dst_adj)])
+                elif isinstance(a, SASSConstantRef):
+                    c = process_c_lookup(a) if a.ty == 'c' else process_cx_lookup(a)
+                    if c:
+                        o.append(c)
+                    else:
+                        self._xlat_failure(f'constant {a.ty} {a}')
+                        return None
                 elif isinstance(a, str):
-                    if (a.startswith('-') and not a.startswith('-c[')) or a.startswith('0x'):
+                    if a.startswith('-') or a.startswith('0x'):
                         o.append(f"(sass_reg) {a}")
-                    elif a.startswith('c[') or a.startswith('-c['):
-                        c = process_c_lookup(a)
-                        if c:
-                            o.append(c)
-                        else:
-                            self._xlat_failure(f'constant {a}')
-                            return None
-                    elif a.startswith('cx['):
-                        c = process_cx_lookup(a)
-                        if c:
-                            o.append(c)
-                        else:
-                            self._xlat_failure(f'cxconstant {a}')
-                            return None
-                    elif a == 'PR':
-                        o.append(a)
-                    elif a == "PT" or a == "!PT":
-                        # TODO: why is PT still a string?
-                        o.append(a)
-                    elif a == "+INF ":
+                    elif a == "+INF":
                         o.append('INFINITY')
-                    elif a == "-INF ":
+                    elif a == "-INF":
                         o.append('-INFINITY')
                     elif DECIMAL_RE.match(a):
                         o.append(f'(sass_reg) {a}')
                     else:
                         # non-local lookup for i
                         raise NotImplementedError(f"Argument {a} for {i.opcode}")
+                else:
+                    raise NotImplementedError(a)
 
             return ', '.join(o)
 
@@ -407,7 +397,8 @@ class SASS2C:
             opcode = "UIADD3"
         elif i.opcode == "LOP3.LUT": # other variants not yet supported, see ptx
             opcode = "LOP3_LUT"
-            assert i.args[-1] == "!PT", i.args[-1]
+            # !PT
+            assert isinstance(i.args[-1], SASSRegister) and i.args[-1].n == "PT" and i.args[-1].is_not
             args = process_args(i.args[:-1])
         elif i.opcode == "PLOP3.LUT":
             opcode = "PLOP3_LUT"
@@ -416,7 +407,7 @@ class SASS2C:
             args = process_args(i.args)
         elif i.opcode == "ULOP3.LUT": # other variants not yet supported, see ptx
             opcode = "ULOP3_LUT"
-            assert i.args[-1] == "!UPT", i.args[-1]
+            assert isinstance(i.args[-1], SASSRegister) and i.args[-1].n == "UPT" and i.args[-1].is_not, i.args[-1]
             args = process_args(i.args[:-1])
         elif i.opcode == "IMNMX":
             opcode = "IMNMX"
@@ -446,7 +437,7 @@ class SASS2C:
             opcode = i.opcode
         elif i.opcode == "P2R":
             opcode = i.opcode
-            assert i.args[1] == "PR"
+            assert i.args[1].n == "PR"
             assert i.args[2].n == "RZ"
             args = process_args(i.args[:3]) + ", " + _decode_regset_imm(i.args[3])
         elif i.opcode == "ULDC.S8":
