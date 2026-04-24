@@ -5,13 +5,14 @@ import itertools
 import re
 import json
 import sqlite3
+from sassparser import sass_parse, AST2SASS
 
 try:
     import compression.bz2 as bz2
 except ImportError:
     import bz2
 
-from gpucodeanalyzer.isa.sass import SASSInstruction, SASSControlInsn, SASSFile, SASSRegister, PR_NUM
+from gpucodeanalyzer.isa.sass import SASSInstruction, SASSControlInsn, SASSFile, SASSRegister, PR_NUM, SASSConstantRef
 
 INSN_START = re.compile(r"^CTA (?P<ctax>\d+),(?P<ctay>\d+),(?P<ctaz>\d+) - warp (?P<warp>\d+) - (?P<op_idx>\d+) - (?P<insn>.*) ;:$")
 KERNEL_START = re.compile(r"Kernel ((?P<kidx>\d+):)?(?P<name>.*) - grid size (?P<gridx>\d+),(?P<gridy>\d+),(?P<gridz>\d+) - block size (?P<blockx>\d+),(?P<blocky>\d+),(?P<blockz>\d+) - nregs (?P<nregs>\d+) - shmem (?P<shmem>\d+) - cuda stream id (?P<stream>\d+)( - ipoint_pre (?P<ipoint_pre>\d+))?$")
@@ -28,6 +29,8 @@ WIDTH_VALUE = re.compile(r"Width: (?P<value>\d+)$")
 
 PT = 7
 UPT = 7
+
+A2S = AST2SASS()
 
 class KernelData:
     def __init__(self, kernel_match, kernel_idx):
@@ -228,6 +231,21 @@ class RawTrace:
 
         assert len(delayed) == 0
 
+    def make_insn2(self, insn_data):
+        r = sass_parse(insn_data.insn)
+        assert r is not None, insn_data.insn
+
+        pc = r.addr
+        pred, o, a, aast = r.pred[1:] if r.pred else None, r.opcode, r.operands, r.ast
+        insn = r.opcode + ((" " + r.operands) if r.operands else "")
+
+        if SASSFile.SASS_CONTROL_INSN.match(o):
+            i = SASSControlInsn(pc, pred, o, aast, insn, parsed_args = True)
+        else:
+            i = SASSInstruction(pc, pred, o, aast, insn, parsed_args = True)
+
+        return i
+
     def make_insn(self, insn_data):
         # TODO: have a nicer parser
         # currently based on _mkinsn
@@ -244,7 +262,7 @@ class RawTrace:
         if insn_data.insn in self._anno_cache:
             out = self._anno_cache[insn_data.insn]
         else:
-            insn = self.make_insn(insn_data)
+            insn = self.make_insn2(insn_data)
 
             # always regular only
             regs_written = len([r for r in insn.writes() if isinstance(r, SASSRegister) and r.is_regular()])
@@ -293,13 +311,16 @@ class RawTrace:
                                 out.append((o.access(), r,
                                             (lambda num: lambda x: x.get_pred_v2(num))(r.number())
                                             ))
+                elif isinstance(o.operand, SASSConstantRef):
+                    if insn_data.constant is not None:
+                        out.append((o.access(), o.operand, lambda x: x.constant))
                 elif isinstance(o.operand, str):
-                    if (o.operand.startswith('c') or o.operand.startswith('-c')):
-                        if insn_data.constant is not None:
-                            out.append((o.access(), o.operand, lambda x: x.constant))
-                    else:
-                        if not o.operand.startswith('['):
-                            out.append((o.access(), o.operand, (lambda val: lambda x: val)(o.operand)))
+                    # if (o.operand.startswith('c') or o.operand.startswith('-c')):
+                    #     if insn_data.constant is not None:
+                    #         out.append((o.access(), o.operand, lambda x: x.constant))
+                    # else:
+                    if not o.operand.startswith('['):
+                        out.append((o.access(), o.operand, (lambda val: lambda x: val)(o.operand)))
 
 
             if reg_ptr != len(insn_data.regs):
@@ -335,6 +356,8 @@ class RawTrace:
         def get_reg_or_str(op):
             if isinstance(op, SASSRegister):
                 return op.n
+            elif isinstance(op, SASSConstantRef):
+                return A2S.visit(op._parsed)
             elif isinstance(op, str):
                 return op
             else:
@@ -410,7 +433,7 @@ def get_observations(trace):
             out.append(val)
             params.append((args[0], args[1]))
 
-        insn2 = trace.make_insn(insn)
+        insn2 = trace.make_insn2(insn)
         tests = {
             'insn': insn.insn,
             'opcode': insn2.opcode,
@@ -478,7 +501,6 @@ class TraceStorage:
     def insert_instruction(self, kernel_id, instruction):
         cur = self.conn.cursor()
 
-        insn = SASSInstruction.parse(instruction['insn'])
         cur.execute('INSERT INTO Instructions (kernel_id, opcode, insn, op_idx, cta_x, cta_y, cta_z, warp_id, params) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);',
                     (kernel_id,
                      instruction['opcode'],
