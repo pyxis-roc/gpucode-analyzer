@@ -232,7 +232,7 @@ class RawTrace:
         assert len(delayed) == 0
 
     def make_insn2(self, insn_data):
-        r = sass_parse(insn_data.insn)
+        r = sass_parse(insn_data.insn, opt=True)
         assert r is not None, insn_data.insn
 
         pc = r.addr
