@@ -16,6 +16,7 @@ def main():
     p.add_argument("-f", "--fn", dest="func_name", help="Function name")
     p.add_argument("-m", dest="metadata", help="Metadata file")
     p.add_argument("-x", dest="addl_xdata", help="Additional metadata files to merge", action="append", default=[])
+    p.add_argument("--sass-cbank", dest="sass_cbank", action="store_true")
 
     p.add_argument("output")
 
@@ -33,7 +34,11 @@ def main():
     sk_cfg = sk.get_skeleton_cfg()
 
     if not args.xlatinfo.exists():
-        xlatinfo = disp.converter().create_xlatinfo(code)
+        xlatinfo_args = {}
+        if disp.name == 'sass':
+            xlatinfo_args['cbank'] = args.sass_cbank
+
+        xlatinfo = disp.converter().create_xlatinfo(code, **xlatinfo_args)
         with open(args.xlatinfo, "w") as f:
             f.write(yaml.dump(xlatinfo))
 

@@ -2,6 +2,7 @@ from .sass import SASSRegister, SASSConstantRef
 from itertools import chain
 import re
 from sassparser import AST2SASS
+from sassparser.sasstokens import Hexadecimal
 
 DECIMAL_RE = re.compile(r'-?[0-9]+')
 
@@ -11,6 +12,9 @@ class XlatInfo:
 
     def functions(self):
         return self.data.keys()
+
+    def is_cbank(self, fn):
+        return self.data[fn].get('cbank', False)
 
     def get_function_data(self, fn):
         return self.data[fn]
@@ -38,11 +42,27 @@ class XlatInfo:
     def get_arg_values(self, fn):
         return self.data[fn].get('arg_values', [])
 
-    def map_constant(self, fn, constant):
-        return self.data[fn].get("constant_map", {}).get(constant, None)
+    def map_constant(self, fn, constant, cref, sz = '32'):
+        if self.is_cbank(fn):
+            if isinstance(cref.bank, Hexadecimal):
+                bank = cref.bank.value
+            else:
+                raise NotImplementedError(bank)
+
+            if len(cref.offset) == 1:
+                if isinstance(cref.offset[0], Hexadecimal):
+                    offset = cref.offset[0].raw
+                else:
+                    raise NotImplementedError(cref.offset[0])
+            else:
+                raise NotImplementedError(cref.offset)
+
+            return f"READ_U{sz}(&cbank{bank}[{offset}])"
+        else:
+            return self.data[fn].get("constant_map", {}).get(constant, None)
 
     @staticmethod
-    def create(sassfile):
+    def create(sassfile, cbank = False):
         out = {}
         for c in sassfile.codes:
             out[c] = {'global_decl': [], # C global declarations
@@ -51,12 +71,19 @@ class XlatInfo:
                       'grid_dim': None, # 3-element vector
                       'arg_values': [{}],
                       'constant_map': {},
+                      'cbank': cbank,    # one arg with cbank
                       'main_inject_code': "",
                       }
 
             if sassfile.metadata:
                 fnmeta = sassfile.metadata[c]
                 if not 'EIATTR_PARAM_CBANK' in fnmeta: continue
+
+                if cbank:
+                    out[c]['args'] = ['uint8* cbank0']
+                    out[c]['arg_values'][0]['cbank0'] = f'{c}_cbank0'
+                    out[c]['global_decl'].append('#include "cbank0.h"')
+                    continue
 
                 start = fnmeta['EIATTR_PARAM_CBANK']['start']
                 out[c]['args'] = ['']*len(fnmeta['EIATTR_KPARAM_INFO'])
@@ -311,7 +338,7 @@ class SASS2C:
             cl = self.a2s.visit(ccl._parsed)
             if neg: cl = cl[1:]
 
-            mc = self.xlatinfo.map_constant(fn, cl)
+            mc = self.xlatinfo.map_constant(fn, cl, ccl._parsed.value)
 
             if mc is None:
                 # TODO: make this a compiler-specific mapping table
@@ -654,5 +681,5 @@ class SASS2C:
             print(self.causes)
 
     @staticmethod
-    def create_xlatinfo(sassfile):
-        return XlatInfo.create(sassfile)
+    def create_xlatinfo(sassfile, cbank = False):
+        return XlatInfo.create(sassfile, cbank)
