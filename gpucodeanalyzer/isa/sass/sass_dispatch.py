@@ -2,6 +2,8 @@ from ..dispatch import Dispatcher
 from . import SASSFile, SASSClassifier, SASS2C
 
 class SASSDispatcher(Dispatcher):
+    name = 'sass'
+
     def can_handle_by_ext(self, filename):
         return filename.endswith('.sass')
 

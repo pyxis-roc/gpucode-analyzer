@@ -1,4 +1,6 @@
 class Dispatcher:
+    name = None
+
     def can_handle_by_ext(self, filename):
         raise NotImplementedError
 
