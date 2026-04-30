@@ -333,12 +333,12 @@ class SASS2C:
         self.causes[cause] = self.causes.get(cause, 0) + 1
 
     def xlat_insn(self, i, fn, pre_hook = None, post_hook = None):
-        def process_c_lookup(ccl):
+        def process_c_lookup(ccl, sz = '32'):
             neg = "-" if ccl._parsed.neg else ""
             cl = self.a2s.visit(ccl._parsed)
             if neg: cl = cl[1:]
 
-            mc = self.xlatinfo.map_constant(fn, cl, ccl._parsed.value)
+            mc = self.xlatinfo.map_constant(fn, cl, ccl._parsed.value, sz=sz)
 
             if mc is None:
                 # TODO: make this a compiler-specific mapping table
@@ -352,8 +352,8 @@ class SASS2C:
 
             return neg + mc
 
-        def process_cx_lookup(cx):
-            return self.xlatinfo.map_constant(fn, cx)
+        def process_cx_lookup(cx, sz = '32'):
+            return self.xlatinfo.map_constant(fn, cx, sz = sz)
 
         def _decode_regset_imm(regset):
             rs = int(regset, 16)
