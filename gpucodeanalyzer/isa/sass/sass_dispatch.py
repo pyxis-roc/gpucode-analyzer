@@ -1,5 +1,5 @@
 from ..dispatch import Dispatcher
-from . import SASSFile, SASSClassifier, SASS2C
+from . import SASSFile, SASSClassifier, SASS2C, SASSCounter
 
 class SASSDispatcher(Dispatcher):
     name = 'sass'
@@ -15,3 +15,6 @@ class SASSDispatcher(Dispatcher):
 
     def converter(self):
         return SASS2C
+
+    def counter(self):
+        return SASSCounter

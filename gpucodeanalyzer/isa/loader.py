@@ -28,3 +28,15 @@ def load(filename):
     else:
         return cls(filename)
 
+
+def inject_loader_args(p):
+    p.add_argument("-m", dest="metadata", help="Metadata file")
+    p.add_argument("--fn", help="Function")
+    p.add_argument("asmfile")
+
+def load_asmfile(args):
+    metadata = get_metadata(args.metadata)
+    disp = get_dispatcher(args.asmfile)
+    code = disp.loader()(args.asmfile, metadata=metadata)
+
+    return metadata, disp, code

@@ -12,3 +12,6 @@ class Dispatcher:
 
     def converter(self):
         raise NotImplementedError
+
+    def counter(self):
+        raise NotImplementedError
