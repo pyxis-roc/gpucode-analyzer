@@ -160,6 +160,8 @@ class Counter:
 def main():
     p = argparse.ArgumentParser(description="Count")
     p.add_argument("trace")
+    p.add_argument("num_sms", type=int)
+    p.add_argument("occupancy", type=int)
     inject_loader_args(p)
 
     args = p.parse_args()
@@ -168,11 +170,15 @@ def main():
     cfg = CFG(code, args.fn)
     cfg.build()
 
-    gc = GPUConfig(82)
-    config = Config(2, 80, 1, 128, 1, 1, 2)
+    gc = GPUConfig(args.num_sms)
 
     t = trace.PathTrace(args.trace)
     t.load()
+    assert t.metadata is not None, "Need a trace with metadata"
+
+    # TODO: occupancy
+    config = t.metadata + [args.occupancy]
+    config = Config(*config)
 
     ctr = Counter(cfg, disp, t, config, gc)
     ctr.count_bb()

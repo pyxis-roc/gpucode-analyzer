@@ -132,6 +132,7 @@ class PathTraceBlockHook(BlockHook):
         if where == 'includes':
             output.write("#include <pathtrace.h>\n")
         elif where == 'kernel':
+            output.write(f'    printf("# pathtrace metadata: %d %d %d %d %d %d\\n", GRID_DIM.X, GRID_DIM.Y, GRID_DIM.Z, CTA_DIM.X, CTA_DIM.Y, CTA_DIM.Z);\n')
             output.write(f"    struct path_traces *pt = path_trace_create(GRID_DIM.X*GRID_DIM.Y*GRID_DIM.Z*CTA_DIM.X*CTA_DIM.Y*CTA_DIM.Z); \n")
             output.write(f'    if(!pt) fprintf(stderr, "ERROR: Failed to create path trace.\\n");\n')
             output.write(f'    uint64_t pt_trace_id = 0;\n')

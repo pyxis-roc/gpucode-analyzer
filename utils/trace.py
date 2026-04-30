@@ -3,6 +3,7 @@
 import argparse
 import re
 
+TRACE_MD = re.compile(r"^# pathtrace metadata: (\d+) (\d+) (\d+) (\d+) (\d+) (\d+)$")
 TRACE_HDR = re.compile(r"^trace (?P<trace>\d+) id (?P<id>\d+)$")
 TRACE_VAL = re.compile("\t" + r"\s+(?P<ser>\d+) (?P<target>[A-fa-f0-9]+) (?P<count>\d+)$")
 
@@ -27,6 +28,7 @@ class PathTrace:
             trace_data = []
             trace = None
             trace_id = None
+            metadata = None
             for l in f:
                 m = TRACE_HDR.match(l)
                 if m:
@@ -41,6 +43,10 @@ class PathTrace:
                         trace_data.append((int(m.group('ser')),
                                            m.group('target'),
                                            int(m.group('count'))))
+                    else:
+                        m = TRACE_MD.match(l)
+                        if m is not None:
+                            metadata = [int(m.group(x)) for x in range(1,7)]
 
             if len(trace_data):
                 process_trace(trace, trace_id, trace_data)
@@ -48,6 +54,8 @@ class PathTrace:
             for k, v in self.data.items():
                 assert v not in self.data2trace
                 self.data2trace[v] = k
+
+            self.metadata = metadata
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Load a path trace")
@@ -59,4 +67,5 @@ if __name__ == "__main__":
     pt = PathTrace(args.trace)
     pt.load()
 
+    print(pt.metadata)
     print(pt.traces, pt.data)
