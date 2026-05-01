@@ -7,6 +7,7 @@ from functools import reduce
 from gpucodeanalyzer.isa.loader import inject_loader_args, load_asmfile
 from gpucodeanalyzer.generic_cfg import CFG
 from collections import namedtuple
+import csv
 
 RENUMBER = namedtuple('RENUMBER', 'sm warp_id linblock linthread block_idx thread_idx')
 
@@ -157,13 +158,33 @@ class Counter:
 
                 yield out
 
+    def count_all(self):
+        self.count_bb()
+        self.count_trace()
+        self.count_cta()
+        self.count_sm()
+
+    def write_csv(self, csvfile, cta = True, sm = True):
+        with open(csvfile, "w", newline='') as f:
+            ocsv = csv.DictWriter(f, ['src', 'src_id', 'ev', 'thread', 'warp', 'block'])
+            ocsv.writeheader()
+            if cta:
+                for o in self.dump_cta_counts():
+                    ocsv.writerow(o)
+
+            if sm:
+                for o in self.dump_sm_counts():
+                    ocsv.writerow(o)
+
 def main():
     p = argparse.ArgumentParser(description="Count")
     p.add_argument("trace")
+    inject_loader_args(p)
     p.add_argument("num_sms", type=int)
     p.add_argument("occupancy", type=int)
-    inject_loader_args(p)
-
+    p.add_argument("--no-sm", action="store_true", help="Do not output per-SM first wave statistics")
+    p.add_argument("--no-cta", action="store_true", help="Do not output per-CTA statistics")
+    p.add_argument("-o", dest="output", help="Output CSV file")
     args = p.parse_args()
 
     metadata, disp, code = load_asmfile(args)
@@ -181,13 +202,9 @@ def main():
     config = Config(*config)
 
     ctr = Counter(cfg, disp, t, config, gc)
-    ctr.count_bb()
-    ctr.count_trace()
-    ctr.count_cta()
-    ctr.count_sm()
+    ctr.count_all()
 
-    for o in ctr.dump_cta_counts():
-        print(o)
+    ctr.write_csv(args.output or "/dev/stdout")
 
 
 if __name__ == "__main__":
