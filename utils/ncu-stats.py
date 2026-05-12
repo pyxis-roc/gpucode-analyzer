@@ -36,6 +36,8 @@ def scale(v, unit):
 
     if unit[0] == "K":
         return v * 1000
+    elif unit[0] == "G":
+        return v * 1000000000
     else:
         return v
 
@@ -75,6 +77,18 @@ def print_occ(r, funcs, units):
     res = oc.MaxActiveBlocksPerMultiprocessor(nthreads, f.maxDynamicSharedSizeBytes, f)
     return res
 
+def print_mem(r, units):
+    mem_keys = ['dram__bytes_read.sum',
+                'dram__bytes_write.sum',
+                'l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum',
+                'l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum'
+                ]
+
+    show = mem_keys if True else r
+    for k in show:
+        if r[k] and r[k] != 'no data':
+            print(k, r[k], units[k], scale(r[k], units.get(k, '')))
+
 def main():
     import argparse
 
@@ -84,6 +98,7 @@ def main():
 
     p.add_argument("--da", dest="device_attrs", action="store_true", help="Display device attributes suitable for incorporating into cudaocc")
     p.add_argument("--occ", dest="occ", action="store_true", help="Display occupancies")
+    p.add_argument("--mem", dest="mem", action="store_true", help="Display memory statistics")
 
     args = p.parse_args()
 
@@ -108,6 +123,9 @@ def main():
                 v = print_occ(r, funcs, units)
                 print('occ', v.activeBlocksPerMultiprocessor)
                 print('reason', cudaocc.OCC_LIMIT_SET(v.limitingFactors))
+
+            if args.mem:
+                print_mem(r, units)
 
 if __name__ == "__main__":
     main()
