@@ -81,13 +81,32 @@ def print_mem(r, units):
     mem_keys = ['dram__bytes_read.sum',
                 'dram__bytes_write.sum',
                 'l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum',
-                'l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum'
+                'l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum',
+
+                'lts__t_sector_hit_rate.pct',
+
+                'lts__t_requests.sum', # L2 Tag slice requests
+
+                'lts__t_requests_srcunit_tex.sum',
+                'lts__t_requests_srcunit_tex_op_read.sum',
+                'lts__t_requests_srcunit_tex_op_write.sum',
+                'lts__t_sectors.sum',
+
+                'lts__t_sectors_lookup_hit.sum',
+                'lts__t_sectors_lookup_miss.sum' # * 32 is dram__bytes_read
                 ]
 
-    show = mem_keys if True else r
-    for k in show:
-        if r[k] and r[k] != 'no data':
-            print(k, r[k], units[k], scale(r[k], units.get(k, '')))
+    # LDGSTS.128 bytes = total count/sm * numSms * (128/8) => total bytes
+    # 'lts__t_sector_hit_rate.pct' seems to be an overestimate of hit rate
+    # instead, lookup_miss/(lookup_hit+lookup_miss) is a better estimate
+
+    to_show = [mem_keys]
+    if False: to_show.insert(0, r)
+
+    for show in to_show:
+        for k in show:
+            if r[k] and r[k] != 'no data':
+                print(k, r[k], units[k], scale(r[k], units.get(k, '')))
 
 def main():
     import argparse
