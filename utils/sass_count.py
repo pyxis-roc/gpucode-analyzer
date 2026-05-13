@@ -17,6 +17,31 @@ class GPUConfig:
     def __init__(self, numSms):
         self.numSms = numSms
 
+class Scheduler:
+    def __init__(self, launch_config, gpu_config, *args, **kwargs):
+        self.launch_config = launch_config
+        self.gpu_config = gpu_config
+        self.occupancy = self.launch_config.occupancy
+
+    def schedule(self, lincta):
+        raise NotImplementedError
+
+class FirstWaveRRScheduler(Scheduler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+        self.wave_size = self.occupancy * self.gpu_config.numSms
+
+    def schedule(self, lincta):
+        return (lincta % self.gpu_config.numSms) if lincta < self.wave_size else None
+
+class RRScheduler(Scheduler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.wave_size = self.occupancy * self.gpu_config.numSms
+
+    def schedule(self, lincta):
+        return (lincta % self.gpu_config.numSms)
+
 class Config:
     grid = None
     block = None
@@ -45,27 +70,27 @@ class Config:
         ctathread = linthread % self.block_threads
         return ctathread, self.from_linear(ctathread, self.block)
 
-    def renumber(self, trace_id, gpu_config):
+    def renumber(self, trace_id, gpu_config, ctasched):
         trace_id = int(trace_id)
 
         lincta, cta = self.linear2cta(trace_id)
         linthread, thread = self.linear2thread(trace_id)
 
-        wave_size = self.occupancy * gpu_config.numSms
         warp_id = linthread // 32
 
-        return RENUMBER((lincta % gpu_config.numSms) if lincta < wave_size else None,
+        return RENUMBER(ctasched.schedule(lincta),
                         warp_id,
                         lincta, linthread, cta, thread)
 
 
 class Counter:
-    def __init__(self, cfg, disp, trace, launch_config, gpu_config):
+    def __init__(self, cfg, disp, trace, launch_config, gpu_config, ctasched):
         self.cfg = cfg
         self.disp = disp
         self.trace = trace
         self.launch_config = launch_config
         self.gpu_config = gpu_config
+        self.ctasched = ctasched
 
         self.counter = disp.counter()()
         self.bb_counts = {}
@@ -108,7 +133,7 @@ class Counter:
 
         cta_to_threads = {}
         for tr in trace.traces:
-            n = lc.renumber(tr[1], self.gpu_config)
+            n = lc.renumber(tr[1], self.gpu_config, self.ctasched)
 
             if n.linblock not in cta_to_threads:
                 cta_to_threads[n.linblock] = []
@@ -136,7 +161,7 @@ class Counter:
         for cta in self.cta_to_threads:
             tinfo = self.cta_to_threads[cta]
             sm = tinfo[0][1].sm
-            if sm is None: continue # past first wave
+            if sm is None: continue # firstwaverrscheduler
 
             self._update_count(sm_counts[sm], self.cta_counts[cta])
             self._update_count(sm_counts[sm], {'_BLOCK': {'block': 1}})
@@ -176,6 +201,10 @@ class Counter:
                 for o in self.dump_sm_counts():
                     ocsv.writerow(o)
 
+
+SCHEDS = {'firstwaverr': FirstWaveRRScheduler,
+          'allrr': RRScheduler}
+
 def main():
     p = argparse.ArgumentParser(description="Count")
     p.add_argument("trace")
@@ -184,6 +213,8 @@ def main():
     p.add_argument("occupancy", type=int)
     p.add_argument("--no-sm", action="store_true", help="Do not output per-SM first wave statistics")
     p.add_argument("--no-cta", action="store_true", help="Do not output per-CTA statistics")
+    p.add_argument("--sched", dest="sched", choices=SCHEDS.keys(),
+                   default='allrr')
     p.add_argument("-o", dest="output", help="Output CSV file")
     args = p.parse_args()
 
@@ -201,7 +232,10 @@ def main():
     config = t.metadata + [args.occupancy]
     config = Config(*config)
 
-    ctr = Counter(cfg, disp, t, config, gc)
+    ctasched = SCHEDS[args.sched](launch_config = config,
+                                  gpu_config = gc)
+
+    ctr = Counter(cfg, disp, t, config, gc, ctasched)
     ctr.count_all()
 
     ctr.write_csv(args.output or "/dev/stdout")
