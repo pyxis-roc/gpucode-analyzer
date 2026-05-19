@@ -359,6 +359,7 @@ class SASSInstruction(Instruction):
                     'LDG.E.LTC128B.CONSTANT': {0: 4},
                     'LDG.E.128': {0: 4},
                     'LDG.E.64': {0: 2},
+                    'LDG.E.LTC128B.128': {0: 4},
 
                     'LDL.LU.64': {0: 2},
                     'LDL.64': {0: 2},
