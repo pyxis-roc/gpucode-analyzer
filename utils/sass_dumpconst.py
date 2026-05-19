@@ -43,6 +43,7 @@ def main():
     p = argparse.ArgumentParser(description="Extract values from constant memory")
     p.add_argument("tracedb", help="Output of process_rrv")
     p.add_argument("kernel_id", type=int)
+    p.add_argument("output", nargs='?', default='cbank0.h')
 
     args = p.parse_args()
 
@@ -67,15 +68,15 @@ def main():
         insn = Instruction(i['instruction_id'], i['opcode'], i['insn'], i['op_idx'], i['kernel_id'], params)
 
         #print(insn, cindices)
-        args = []
+        iargs = []
         for a in db.get_instruction_args(i['instruction_id']):
-            args = json.loads(a['arguments'])
+            iargs = json.loads(a['arguments'])
             for x in cindices:
                 addr = params[x][1]
                 if addr in const:
                     # same addr can be loaded as 64-bit or 32-bit, keep 64-bit
-                    if const[addr] != args[x]:
-                        v1 = args[x][2:]
+                    if const[addr] != iargs[x]:
+                        v1 = iargs[x][2:]
                         v2 = const[addr][2:]
 
                         if v2.endswith(v1) or v1.endswith(v2):
@@ -83,9 +84,13 @@ def main():
                         else:
                             assert f"Constant mismatch {addr} {const[addr]} {args[x]}"
                 else:
-                    const[addr] = args[x]
+                    const[addr] = iargs[x]
 
-    print(f"const uint8_t {kernel['name']}_{kernel['kernel_id']}_cbank0[] = ", cbank_to_c(*convert_to_byte_array(const)) + ';')
+
+    with open(args.output, 'w') as out:
+        print("#pragma once", file=out)
+        print(f"const uint8_t {kernel['name']}_{kernel['kernel_id']}_cbank0[] = ", cbank_to_c(*convert_to_byte_array(const)) + ';', file=out)
+        print(f"const uint8_t * {kernel['name']}_cbank0 = {kernel['name']}_{kernel['kernel_id']}_cbank0;", file=out)
 
 if __name__ == "__main__":
     main()
