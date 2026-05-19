@@ -27,9 +27,13 @@ class TestInsnHook(InsnHook):
         i, a = self.gen.insns[self.gen._insn_count]
 
         for (m, r), a in zip(i.params, a):
-            if m in ('R', 'RW') and (r[0] == 'R' or r[0] == 'U'):
-                if r != 'RZ' and r!= 'URZ' and r != 'UPT':
-                    output.write(f"{r} = {a};\n")
+            if m in ('R', 'RW'):
+                if (r[0] == 'R' or r[0] == 'U' or r[0] == 'P'):
+                    if r != 'RZ' and r!= 'URZ' and r != 'UPT' and r != 'PT':
+                        output.write(f"{r} = {a};\n")
+                elif (r[0] == 'c'):
+                    #TODO: c32 or c64.
+                    output.write(f"c32 = {a};\n")
 
     def post_hook(self, insn, output, translated):
         self.gen._insn_count += 1
