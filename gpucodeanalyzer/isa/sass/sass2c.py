@@ -80,7 +80,7 @@ class XlatInfo:
                 if not 'EIATTR_PARAM_CBANK' in fnmeta: continue
 
                 if cbank:
-                    out[c]['args'] = ['uint8* cbank0']
+                    out[c]['args'] = ['uint8_t* cbank0']
                     out[c]['arg_values'][0]['cbank0'] = f'{c}_cbank0'
                     out[c]['global_decl'].append('#include "cbank0.h"')
                     continue
@@ -413,6 +413,8 @@ class SASS2C:
             opcode = i.opcode
         elif i.opcode == "IADD3":
             opcode = "IADD3"
+        elif i.opcode == "IADD3.X":
+            opcode = "IADD3_X"
         elif i.opcode == "IABS":
             opcode = "IABS"
         elif i.opcode == "EXIT":
@@ -466,7 +468,7 @@ class SASS2C:
         elif i.opcode == "P2R":
             opcode = i.opcode
             assert i.args[1].n == "PR"
-            assert i.args[2].n == "RZ"
+            #assert i.args[2].n == "RZ", i.args[2]
             args = process_args(i.args[:3]) + ", " + _decode_regset_imm(i.args[3])
         elif i.opcode == "ULDC.S8":
             args = process_args([i.args[1]])
@@ -535,6 +537,8 @@ class SASS2C:
             opcode = "USHF_R_S32_HI"
         elif i.opcode == "SHF.L.U32":
             opcode = "SHF_L_U32"
+        elif i.opcode == "SHF.L.U64.HI":
+            opcode = "SHF_L_U64_HI"
         elif i.opcode == "USHF.L.U32":
             opcode = "USHF_L_U32"
         else:

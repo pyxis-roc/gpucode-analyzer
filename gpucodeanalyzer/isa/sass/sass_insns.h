@@ -82,6 +82,7 @@ static uint64_t READ_U64(uint8_t *addr) {
 #define F2I_FTZ_U32_TRUNC_NTZ(dst, src) dst = (uint32_t) NTZf(TRUNCf(FTZf(AS_FLOAT(src))))
 
 #define IADD3(dst, src1, src2, src3) dst = src1 + src2 + src3
+#define IADD3_X(dst, src1, src2, src3, p1, p2) dst = src1 + src2 + src3 + p1 + p2
 
 #define EXIT() goto label_exit
 #define BRA(label) goto label
@@ -193,6 +194,8 @@ static uint64_t READ_U64(uint8_t *addr) {
 
 #define rotate_right_64(val, rot) rot == 64 ? val : ((val << (64 - rot)) | (val >> rot))
 #define rotate_left_64(val, rot) rot == 64 ? val : ((val << rot) | (val >> (64 - rot)))
+
+#define SHF_L_U64_HI(dst, src1, rot, src2) dst = rotate_left_64(concat_u32(src2, src1), rot) >> 32
 
 #define SHF_L_U32(dst, src1, rot, src2) dst = rotate_left_64(concat_u32(src2, src1), rot)
 #define USHF_L_U32(dst, src1, rot, src2) SHF_L_U32(dst, src1, rot, src2)
