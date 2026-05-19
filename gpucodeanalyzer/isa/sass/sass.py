@@ -74,13 +74,14 @@ class SASSRegister(Register):
                 if not ssfx: continue
                 n = n + "." + ssfx
 
-        if self.is_inverted:
+        # sass parser inverts the meaning of not and inverted
+        if self.is_not:
             return "!" + n
 
         if self.is_negated:
             return "-" + n
 
-        if self.is_not:
+        if self.is_inverted:
             return "~" + n
 
         return n
@@ -837,8 +838,8 @@ class SASSFile:
                 function = None
                 code = []
 
+        self.codes = codes
         if len(codes):
-            self.codes = codes
             self.code = codes[ff]
 
         if len(self.code) == 0 or len(self.codes) == 0:
