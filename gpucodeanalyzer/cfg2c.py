@@ -3,6 +3,7 @@ def main():
     from gpucodeanalyzer.isa.sass import SASSFile, SASS2C
     from gpucodeanalyzer.generic_cfg import CFG
     from gpucodeanalyzer.skeletonizer import Skeletonizer
+    from gpucodeanalyzer.slice import Slicer, get_labels
 
     import yaml
     import sys
@@ -18,6 +19,8 @@ def main():
     p.add_argument("-x", dest="addl_xdata", help="Additional metadata files to merge", action="append", default=[])
     p.add_argument("--sass-cbank", dest="sass_cbank", action="store_true")
 
+    p.add_argument("--slice", dest="slice", help="Use slicer instead of skeletonizer, with argument being comma-separated addresses/re")
+
     p.add_argument("output")
 
     args = p.parse_args()
@@ -28,8 +31,12 @@ def main():
     cfg = CFG(code, fn_name=args.func_name)
     cfg.build()
 
-    sk = Skeletonizer(cfg)
-    sk.build_skeleton()
+    if args.slice:
+        sk = Slicer(cfg)
+        sk.slice(get_labels(cfg, args.slice.split(",")))
+    else:
+        sk = Skeletonizer(cfg)
+        sk.build_skeleton()
 
     sk_cfg = sk.get_skeleton_cfg()
 
