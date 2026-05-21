@@ -1,7 +1,8 @@
 from .sass.sass_dispatch import SASSDispatcher
+from .ptx import PTXDispatcher
 import json
 
-DISPATCHERS = [SASSDispatcher()]
+DISPATCHERS = [SASSDispatcher(), PTXDispatcher()]
 
 def get_metadata(metadatafile):
     if metadatafile:
