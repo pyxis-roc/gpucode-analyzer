@@ -5,6 +5,8 @@ from io import StringIO
 from ...generic_cfg import Instruction, ControlInsn, Register, Memory, Operand
 import re
 
+CONSTANT_REGS = {'%tid', '%ntid'}
+
 def ptx2code(p):
     out = StringIO()
     vis = a2p.PTXAST2Code(out)
@@ -13,15 +15,63 @@ def ptx2code(p):
     out.close()
     return v
 
+class PTXLabelOrName:
+    def __init__(self, n):
+        self.n = n
+
+class PTXRegister(Register):
+    def __init__(self, n):
+        self.n = n
+
+    def is_constant(self):
+        return self.n in CONSTANT_REGS
+
+class PTXAddress(Memory):
+    def __init__(self, value, offset):
+        self.value = value
+        self.offset = offset
+
+    def registers(self):
+        out = []
+        if isinstance(self.value, PTXRegister):
+            out.append(self.value)
+
+        assert not isinstance(self.offset, PTXRegister), self.value
+
+        return out
+
 class PTXInstruction(Instruction):
-    def __init__(self, pc, ast, opcode, insn):
+    NON_WRITING = {"bra"}
+
+    def __init__(self, pc, ast, opcode, insn, labels):
         self.label = pc
         self.ast = ast
         self.insn = insn
         self.opcode = opcode
 
         self.predicate = self.ast.predicate
-        self.args = []
+        self.args = self._parse_args(self.ast.args, labels)
+
+    def _parse_args(self, args, labels):
+        out = []
+        for a in args:
+            if isinstance(a, pa.Id):
+                if a.name not in labels:
+                    out.append(PTXRegister(a.name))
+                else:
+                    out.append(PTXLabelOrName(a.name))
+            elif isinstance(a, pa.AddressOpr):
+                assert a.offset is None, a.offset
+                out.append(PTXAddress(PTXRegister(a.value.name),
+                                      a.offset))
+            elif isinstance(a, pa.VectorComp):
+                out.append(PTXRegister(a.var.name))
+            elif isinstance(a, pa.ConstExpr):
+                pass
+            else:
+                raise NotImplementedError(a)
+
+        return out
 
     def __str__(self):
         return f"{self.label}: {self.insn}"
@@ -35,16 +85,28 @@ class PTXInstruction(Instruction):
         return self.predicate is not None
 
     def write_count(self):
-        return 0
+        if self.opcode in self.NON_WRITING:
+            return 0
+        else:
+            return 1
 
     def operands(self):
-        return []
+        raise NotImplementedError
 
     def reads(self):
-        return []
+        write_regs = self.write_count()
+        rds = list(x for x in self.args[write_regs:] if isinstance(x, Register))
+        if self.predicate:
+            rds.append(PTXRegister(self.predicate.reg.name))
+
+        #TODO: address
+        return rds
 
     def writes(self):
-        return []
+        write_args = self.write_count()
+        writes = list(x for x in self.args[:write_args] if isinstance(x, Register) and not x.is_constant() and x.n != "_")
+
+        return writes
 
 # for declarations, etc.
 class PTXNullInstruction(Instruction):
@@ -130,6 +192,10 @@ class PTXFile:
     def make_insns(self, fn):
         out = []
         label = None
+
+        # TODO: labels inside blocks
+        labels = set([x.name for x in fn.body if isinstance(x, pa.Label)])
+
         for pc, i in enumerate(fn.body):
             if isinstance(i, pa.Statement):
 
@@ -137,9 +203,9 @@ class PTXFile:
                 insn = ptx2code(i)
 
                 if self.PTX_CONTROL_INSN.match(opcode):
-                    out.append(PTXControlInsn(label or str(pc), i, opcode, insn))
+                    out.append(PTXControlInsn(label or str(pc), i, opcode, insn, labels))
                 else:
-                    out.append(PTXInstruction(label or str(pc), i, opcode, insn))
+                    out.append(PTXInstruction(label or str(pc), i, opcode, insn, labels))
                 label = None
             elif isinstance(i, pa.Label):
                 label = i.name
