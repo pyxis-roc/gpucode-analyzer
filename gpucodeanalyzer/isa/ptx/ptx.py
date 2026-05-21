@@ -29,10 +29,42 @@ class PTXInstruction(Instruction):
     __repr__ = __str__
 
     def code(self):
-        return ptx2code(self.insn)
+        return self.insn
 
     def predicated(self):
         return self.predicate is not None
+
+    def write_count(self):
+        return 0
+
+    def operands(self):
+        return []
+
+    def reads(self):
+        return []
+
+    def writes(self):
+        return []
+
+# for declarations, etc.
+class PTXNullInstruction(Instruction):
+    def __init__(self, pc, ast, insn):
+        self.label = pc
+        self.ast = ast
+        self.insn = insn
+
+        self.args = []
+
+    def __str__(self):
+        return f"{self.label}: {self.insn}"
+
+    __repr__ = __str__
+
+    def code(self):
+        return self.insn
+
+    def predicated(self):
+        return False
 
     def write_count(self):
         return 0
@@ -111,6 +143,11 @@ class PTXFile:
                 label = None
             elif isinstance(i, pa.Label):
                 label = i.name
+            elif isinstance(i, pa.MultivarDecl):
+                insn = ptx2code(i)
+                out.append(PTXNullInstruction(str(pc), i, insn))
+            elif isinstance(i, pa.Block):
+                raise NotImplementedError
 
         return out
 
