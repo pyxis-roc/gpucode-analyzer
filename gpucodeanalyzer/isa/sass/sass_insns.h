@@ -189,7 +189,6 @@ static uint64_t READ_U64(uint8_t *addr) {
 #define ULDC_S8(dst, src) dst = (int8_t) (src & 0xff);
 #define ULDC_64(dst1, dst2, src) dst2 = (src & 0xffffffffL); dst1 = (src >> 32)
 
-
 #define concat_u32(hi, lo) ((((uint64_t) hi) << 32) | (uint64_t) lo)
 
 #define rotate_right_64(val, rot) rot == 64 ? val : ((val << (64 - rot)) | (val >> rot))
@@ -222,3 +221,6 @@ static uint64_t READ_U64(uint8_t *addr) {
 #define ULEA_HI_SX32(dst, src, imm1, imm_shift) LEA_HI_SX32(dst, src, imm1, imm_shift)
 
 #define P2R(dst, ign_PR, ign_RZ, pred_set) dst = pred_set
+
+// TODO:
+#define SGXT_U32(dst, src, imm) dst = (uint32_t) ((int32_t) (imm == 0x5 ? src : (imm == 0x3 ? (int8_t) src : src)))

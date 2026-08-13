@@ -465,6 +465,8 @@ class SASS2C:
             opcode = "ULEA_HI_SX32"
         elif i.opcode == "SEL" or i.opcode == "USEL":
             opcode = i.opcode
+        elif i.opcode == "SGXT.U32":
+            opcode = "SGXT_U32"
         elif i.opcode == "P2R":
             opcode = i.opcode
             assert i.args[1].n == "PR"
