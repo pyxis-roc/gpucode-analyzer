@@ -120,9 +120,10 @@ class InsnData:
     __repr__ = __str__
 
 class RawTrace:
-    def __init__(self, trace, state_tracking = True):
+    def __init__(self, trace, state_tracking = True, kernel_name = None):
         self.trace = trace
         self.state_tracking = state_tracking
+        self.kernel_name = kernel_name
         self._anno_cache = {}
 
     def _parse_regs(self, l, rx = REG_VALUE):
@@ -219,6 +220,9 @@ class RawTrace:
                 else:
                     delayed.append(l)
             elif isinstance(l, KernelData):
+                if self.kernel_name and l.kernel != self.kernel_name:
+                    continue
+
                 kernels.append(l)
                 if len(delayed):
                     yield l
@@ -568,10 +572,12 @@ def main():
     p.add_argument("tracefile")
     p.add_argument("--no-state", action="store_true", help="Don't track state to fix up read values")
     p.add_argument("-o", dest="obs_dbfile", help="Store observations in database")
+    p.add_argument("--kernel-name", dest="kernel_name", help="KERNEL_NAME parameter if passed to run_rrvt.py")
+
     p.add_argument("command", nargs="?", default="observations", choices=['raw', 'kernel_order', 'io', 'observations'])
     args = p.parse_args()
 
-    t = RawTrace(args.tracefile, state_tracking = not args.no_state)
+    t = RawTrace(args.tracefile, state_tracking = not args.no_state, kernel_name = args.kernel_name)
     if args.command == 'observations':
         dbfile = None
         last_kernel_idx = None
