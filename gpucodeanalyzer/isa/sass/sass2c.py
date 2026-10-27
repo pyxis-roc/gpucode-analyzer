@@ -463,6 +463,8 @@ class SASS2C:
                 opcode = i.opcode
         elif i.opcode == "LEA.HI":
             opcode = "LEA_HI"
+        elif i.opcode == "LEA.HI.X":
+            opcode = "LEA_HI_X"
         elif i.opcode == "LEA.HI.SX32":
             opcode = "LEA_HI_SX32"
         elif i.opcode == "ULEA.HI.SX32":

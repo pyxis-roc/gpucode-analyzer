@@ -217,6 +217,8 @@ static uint64_t READ_U64(uint8_t *addr) {
 
 #define LEA_HI(dst, alo, b, ahi, imm_shift) dst = ((concat_u32(ahi, alo) << imm_shift) >> 32) + b
 
+#define LEA_HI_X(dst, alo, b, ahi, imm_shift, pred) dst = ((concat_u32(ahi, alo) << imm_shift) >> 32) + b + (pred ? 1 : 0)
+
 #define ULEA_HI(dst, alo, b, ahi, imm_shift) LEA_HI(dst, alo, b, ahi, imm_shift)
 
 // TODO: not enough interesting inputs, need to handle SX32
