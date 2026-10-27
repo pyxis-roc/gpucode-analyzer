@@ -1,4 +1,4 @@
 from .sass import SASSRegister, SASSInstruction, SASSControlInsn, SASSConstantRef, SASSFile, PT_NUM, PR_NUM
-from .sass2c import SASS2C, InsnHook
+from .sass2c import SASS2C, InsnHook, Hook, BlockHook
 from .classifier import SASSClassifier
 from .stats import SASSCounter

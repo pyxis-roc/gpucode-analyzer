@@ -241,7 +241,11 @@ class SASS2C:
         self.block_hooks.append(DebugFlowBlockHook())
 
         if hooks is not None:
-            self.hooks.extend(hooks)
+            for h in hooks:
+                if isinstance(h, InsnHook):
+                    self.hooks.append(h)
+                else:
+                    self.block_hooks.append(h)
 
     def call_hook_gencodes(self, where):
         for hk in chain(self.block_hooks, self.hooks):
@@ -295,6 +299,8 @@ class SASS2C:
                             declared.add('SR_TID.Z')
                         else:
                             self.output.write(f"    // unsupported: {x}\n")
+
+        self.call_hook_gencodes('thread_decl')
 
     def init_cfg(self, cfg, func_name):
         self.cfg = cfg

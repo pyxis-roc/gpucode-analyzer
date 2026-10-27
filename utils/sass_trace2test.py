@@ -4,13 +4,16 @@ import argparse
 import sqlite3
 import json
 from process_rrv import TraceStorage
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
-from gpucodeanalyzer.isa.sass import SASSFile, SASS2C, InsnHook
+from gpucodeanalyzer.isa.sass import SASSFile, SASS2C, InsnHook, BlockHook
 from gpucodeanalyzer.generic_cfg import CFG
 
 import tempfile
 import os
+import re
+
+C_RE = re.compile(r"c\[.+\]\[.+\]")
 
 Instruction = namedtuple('Instruction', 'instruction_id  opcode insn op_idx kernel_id params')
 
@@ -42,8 +45,14 @@ class TestInsnHook(InsnHook):
         i, a = self.gen.insns[self.gen._insn_count-1]
 
         for (m, r), a in zip(i.params, a):
-            if m == 'W' and (r[0] == 'R' or r[0] == 'U'):
+            if m == 'W' and (r[0] == 'R' or r[0] == 'U' or r[0] == 'P'):
                 output.write(f"assert({r} == {a});\n")
+
+class ConstDeclHook(BlockHook):
+    def gencode(self, translator, where, output):
+        if where == 'thread_decl':
+            output.write('uint32_t c32;\n')
+            output.write('uint64_t c64;\n')
 
 class TestcaseGenerator:
     def __init__(self, insn_args, output_file, debug = False):
@@ -51,6 +60,8 @@ class TestcaseGenerator:
         self.output_file = output_file
         self.debug = debug
         self.hook = TestInsnHook(self)
+        self.cdhook = ConstDeclHook()
+        self.constants = set()
 
     def generate(self):
         self.insns = []
@@ -70,6 +81,12 @@ class TestcaseGenerator:
             sassfile = f.name
             print("\n".join(out), file=f)
             print("/*ffff*/ EXIT ; \n", file=f);
+
+            for x in out:
+                m = C_RE.search(x)
+                if m:
+                    self.constants.add(m.group(0))
+
             #self.insns.append(None)
 
         self._generate_c(sassfile, self.output_file)
@@ -91,13 +108,14 @@ class TestcaseGenerator:
         xlatinfo = {'test_kernel':
                     {'args': {},
                      'grid_dim': [1,1,1],
-                     'block_dim': [1,1,1]}}
+                     'block_dim': [1,1,1],
+                     'constant_map': dict((k, 'c32') for k in self.constants)}}
 
         func_name = 'test_kernel'
 
         self._insn_count = 0
         with open(output, "w") as f:
-            op = SASS2C(f, xlatinfo, hooks=[self.hook])
+            op = SASS2C(f, xlatinfo, hooks=[self.hook, self.cdhook])
             op.init_module()
             cfg.convert(op, func_name)
             op.finish()

@@ -843,7 +843,7 @@ class SASSFile:
         if len(codes):
             self.code = codes[ff]
 
-        if len(self.code) == 0 or len(self.codes) == 0:
+        if len(self.code) == 0 and len(self.codes) == 0:
             print(f"WARNING:sass: No instructions matched in {sassfile}")
 
     def _mkinsn2(self, sassinsn, fn_name = None):
