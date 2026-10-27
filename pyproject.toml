@@ -12,7 +12,8 @@ authors = [
 description="A generic framework for analyzing GPU code at the assembly level"
 license="MIT"
 dependencies=[
-"sass-parser @ git+https://github.com/pyxis-roc/sass-parser"
+"sass-parser @ git+https://github.com/pyxis-roc/sass-parser",
+"pyyaml"
 ]
 
 [tool.setuptools]
