@@ -7,6 +7,7 @@ from process_rrv import TraceStorage
 from sass_trace2test import Instruction
 import re
 import array
+import sys
 
 C_RE = re.compile(r"c\[0x0\]\[0x(?P<addr>[A-Fa-f0-9]+)\]")
 
@@ -42,19 +43,30 @@ def cbank_to_c(values, cbank):
 def main():
     p = argparse.ArgumentParser(description="Extract values from constant memory")
     p.add_argument("tracedb", help="Output of process_rrv")
-    p.add_argument("kernel_id", type=int)
-    p.add_argument("output", nargs='?', default='cbank0.h')
+    p.add_argument("kernel_id", type=int, nargs="?")
+    p.add_argument("-o", dest="output", default='cbank0.h', help="Output header file")
 
     args = p.parse_args()
 
     db = TraceStorage(args.tracedb)
     out = []
 
-    kernel = db.get_kernel(args.kernel_id)
-    print(kernel['name'], kernel['kernel_id'],
-          kernel['grid_x'], kernel['grid_y'], kernel['grid_z'],
-          kernel['blockdim_x'], kernel['blockdim_y'], kernel['blockdim_z'])
+    if args.kernel_id is None:
+        for k in db.get_kernels():
+            print(k['kernel_id'], k['name'])
+        sys.exit(0)
 
+    kernel = db.get_kernel(args.kernel_id)
+    cmnt = "%s: %s %d: %d %d %d %d %d %d" % (args.tracedb,
+                                             kernel['name'],
+                                             kernel['kernel_id'],
+                                             kernel['grid_x'],
+                                             kernel['grid_y'],
+                                             kernel['grid_z'],
+                                             kernel['blockdim_x'],
+                                             kernel['blockdim_y'],
+                                             kernel['blockdim_z'])
+    print(cmnt)
     const = {}
     for i in db.get_kernel_trace(args.kernel_id):
         params = json.loads(i['params'])
@@ -89,8 +101,10 @@ def main():
 
     with open(args.output, 'w') as out:
         print("#pragma once", file=out)
+        print(f"/* {cmnt} */", file=out)
         print(f"const uint8_t {kernel['name']}_{kernel['kernel_id']}_cbank0[] = ", cbank_to_c(*convert_to_byte_array(const)) + ';', file=out)
         print(f"const uint8_t * {kernel['name']}_cbank0 = {kernel['name']}_{kernel['kernel_id']}_cbank0;", file=out)
 
+    print("Wrote", args.output)
 if __name__ == "__main__":
     main()
