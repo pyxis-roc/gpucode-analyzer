@@ -210,6 +210,9 @@ static uint64_t READ_U64(uint8_t *addr) {
 #define USEL(dst, src1, src2, pred) SEL(dst, src1, src2, pred)
 
 #define LEA(dst, src, b, imm_shift) dst = (src << imm_shift) + b
+#define LEA_5_D0(dst, dstp, src, b, imm_shift) LEA(dst, src, b, imm_shift)
+#define LEA_5_D1(dst, dstp, src, b, imm_shift) dstp = 0; //TODO:
+
 #define ULEA(dst, src, b, imm_shift) LEA(dst, src, b, imm_shift)
 
 #define LEA_HI(dst, alo, b, ahi, imm_shift) dst = ((concat_u32(ahi, alo) << imm_shift) >> 32) + b

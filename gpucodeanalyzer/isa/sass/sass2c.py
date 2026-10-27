@@ -456,7 +456,11 @@ class SASS2C:
         elif i.opcode == "ULEA.HI":
             opcode = "ULEA_HI"
         elif i.opcode in {"LEA", "ULEA"}:
-            opcode = i.opcode
+            if len(i.args) == 5:
+                # check for PT?
+                opcode = [i.opcode + "_5_D0", i.opcode + "_5_D1"]
+            else:
+                opcode = i.opcode
         elif i.opcode == "LEA.HI":
             opcode = "LEA_HI"
         elif i.opcode == "LEA.HI.SX32":
